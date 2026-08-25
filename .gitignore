@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+mlruns/
+projects/*/data/
+projects/*/reports/
+.env
+*.egg-info/
+.pytest_cache/
+wildlife_identification-notes/
+docs/

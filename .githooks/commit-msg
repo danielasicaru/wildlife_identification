@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Strips automated-tooling attribution trailers from commit messages before the commit is finalized.
+msg_file="$1"
+tmp_file="$(mktemp)"
+grep -viE 'co-authored-by|generated with' "$msg_file" > "$tmp_file"
+mv "$tmp_file" "$msg_file"
