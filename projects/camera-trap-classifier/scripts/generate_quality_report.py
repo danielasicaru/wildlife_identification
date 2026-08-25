@@ -35,7 +35,8 @@ def main() -> None:
     # PIL's is_corrupted (Image.verify(), a lightweight structural check) can pass files that
     # OpenCV's decoder still rejects, so both checks are needed before calling blur_score.
     corrupted = [p for p in paths if is_corrupted(p) or not is_opencv_readable(p)]
-    valid_paths = [p for p in paths if p not in corrupted]
+    corrupted_set = set(corrupted)
+    valid_paths = [p for p in paths if p not in corrupted_set]
 
     if not valid_paths:
         raise SystemExit(

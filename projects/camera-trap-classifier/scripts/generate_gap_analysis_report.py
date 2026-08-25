@@ -17,6 +17,10 @@ REPORT_PATH = Path(__file__).resolve().parents[1] / "reports" / "gap_analysis.md
 
 
 def main() -> None:
+    if not BBOX_PATH.exists():
+        raise SystemExit(f"No bounding-box annotations found at {BBOX_PATH} -- download "
+                          "caltech_bboxes_20200316.json first (see project README).")
+
     with open(BBOX_PATH) as f:
         bbox_data = json.load(f)
     bboxes = pd.DataFrame(bbox_data["annotations"])
