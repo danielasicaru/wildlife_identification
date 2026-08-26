@@ -95,10 +95,11 @@ per-step probability differences between majority and minority classes.
 ### Deviations from the original spec
 
 - **Crop scale widened from 0.7-1.0 to 0.4-1.0** after the gap analysis found a third of annotated
-  animals occupy under 2% of frame area — see [ADR 0003](../../docs/decisions/0003-widen-crop-scale-range.md).
+  animals occupy under 2% of frame area — the original range couldn't reach far enough to
+  represent that tail during training.
 - **Gaussian noise sigma is a fixed 0.02**, not a sampled 0.01-0.03 range — `torchvision`'s
-  `GaussianNoise` doesn't support range sampling natively — see
-  [ADR 0004](../../docs/decisions/0004-fixed-gaussian-noise-sigma.md).
+  `GaussianNoise` doesn't support range sampling natively, so the pipeline uses the midpoint of
+  the originally planned range instead.
 - **Normalization uses ImageNet mean/std**, not dataset-computed statistics, matching the
   pretrained-backbone transfer-learning approach planned for classifier training.
 
