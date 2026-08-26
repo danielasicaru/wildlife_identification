@@ -20,8 +20,8 @@ production-shaped FastAPI inference service.
 **Dataset:** Caltech Camera Traps (via LILA BC), paired with the "Recognition in Terra Incognita"
 benchmark for cross-site generalization.
 
-**Status:** dataset characterization and augmentation pipeline functionally complete. One manual
-step remains open: occlusion tagging (see "Key findings" below). Localization, classifier
+**Status:** dataset characterization, augmentation pipeline, and localization functionally
+complete. One manual step remains open: occlusion tagging (see "Key findings" below). Classifier
 training, evaluation, and serving not yet started.
 
 ## Setup
@@ -30,12 +30,23 @@ training, evaluation, and serving not yet started.
 conda create -n wildlife-id python=3.11
 conda activate wildlife-id
 pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-headless imagehash numpy pillow
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128  # or the CPU index if no GPU
+pip install --no-deps megadetector clipboard dill fastquadtree humanfriendly jsonpickle mkl \
+    scikit-learn thop ultralytics-yolov5 seaborn  # --no-deps avoids a pip dependency conflict
+    # with opencv-python-headless; see the localization pipeline plan for why
 ```
 
 Download the annotation files and a stratified image sample:
 
 ```bash
 python scripts/download_sample_images.py  # requires caltech_images_20210113.json in data/raw/ first
+```
+
+Run localization (downloads the ~280MB MegaDetector v5a weights on first run):
+
+```bash
+python scripts/run_localization.py
+python scripts/generate_localization_report.py
 ```
 
 Run tests:
@@ -109,12 +120,41 @@ The pipeline exists as standalone `build_train_transform`/`build_val_transform` 
 isn't wired into a `Dataset`/`DataLoader` yet, since that depends on the localization stage's
 cropped-image outputs, which don't exist until MegaDetector integration is implemented.
 
+## Localization
+
+`src/localization/` wraps MegaDetector v5a (via the `megadetector` package's `PTDetector`) as an
+inference-only animal detector: `detector.py` handles model loading, inference, and
+category/confidence filtering; `crop.py` expands and crops bounding boxes for classifier input;
+`evaluate.py` computes IoU-based recall against ground-truth boxes. 13 unit tests cover the pure
+geometry/filtering logic, plus one integration test against a real sample image and the real
+downloaded model.
+
+- `scripts/run_localization.py` — runs detection + cropping over the 633-image sample
+  (`data/localization/detections.json`, `data/localization/crops/`, not committed)
+- `scripts/generate_localization_report.py` — recall sanity check vs. ground truth
+  (`reports/localization.md`, not committed)
+- [notebooks/eda.ipynb](notebooks/eda.ipynb) — bounding boxes drawn on sample frames, plus the
+  resulting animal crops
+
+### Key findings
+
+- **531 of 633 sample images** produced at least one animal detection (617 crops total) at the
+  MegaDetector-documented "typical" confidence threshold (0.2).
+- **90.8% recall** (325/358 ground-truth animals detected, IoU >= 0.5) on the 314 sample images
+  that have ground-truth bounding-box annotations. This is a small-sample sanity check, not the
+  full mAP/missed-detection-by-condition analysis planned for the dedicated evaluation stage —
+  that needs real train/val/test splits to be meaningful.
+- MegaDetector v5a was chosen over the newer "v1000" model family for better-documented, more
+  widely benchmarked behavior — worth revisiting with a documented comparison if recall turns out
+  to be a bottleneck once the classifier stage is running.
+
 ## Tradeoffs
 
 - Only annotation metadata was downloaded initially, not the full ~105GB image archive; a small
-  stratified sample (390 images) was pulled once image statistics and quality checks required
-  real pixel data. This kept iteration fast without blocking on a multi-hour download, at the cost
-  of quality-check findings being sample-based rather than exhaustive until a full-dataset pass.
+  stratified sample was pulled once image statistics and quality checks required real pixel data
+  (633 images currently in `data/raw/images/`, sampled up to 20 per category including `empty`).
+  This kept iteration fast without blocking on a multi-hour download, at the cost of quality-check
+  and recall findings being sample-based rather than exhaustive until a full-dataset pass.
 - MegaDetector (pretrained) is used for localization rather than training a custom detector, to
   keep engineering effort focused on classification, optimization, and deployment rather than
   object detection research.
