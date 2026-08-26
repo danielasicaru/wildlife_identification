@@ -21,8 +21,7 @@ production-shaped FastAPI inference service.
 benchmark for cross-site generalization.
 
 **Status:** dataset characterization, augmentation pipeline, and localization functionally
-complete. One manual step remains open: occlusion tagging (see "Key findings" below). Classifier
-training, evaluation, and serving not yet started.
+complete. Classifier training, evaluation, and serving not yet started.
 
 ## Setup
 
@@ -58,7 +57,8 @@ python -m pytest tests/ -v
 ## Dataset characterization
 
 Structure inspection, class balance, image statistics, and quality checks, run against the real
-243,100-image annotation set and a 390-image stratified sample (~20 images per species).
+243,100-image annotation set and a 633-image stratified sample (~20 images per category,
+including `empty`).
 
 - [notebooks/eda.ipynb](notebooks/eda.ipynb) — visual walkthrough with rendered charts
 - `reports/characterization.md`, `reports/quality.md`, `reports/gap_analysis.md` — generated
@@ -70,12 +70,12 @@ Structure inspection, class balance, image statistics, and quality checks, run a
 - **Severe class imbalance**: 8349x between the most and least common species (opossum vs. pig).
   Directly informs the oversampling and differential-augmentation-probability design in the
   augmentation spec.
-- **The hour-of-day day/night proxy is unreliable**: pixel-based grayscale detection found 57.4%
-  of the sample effectively grayscale, a 17-point gap from the metadata proxy's 40% night
+- **The hour-of-day day/night proxy is unreliable**: pixel-based grayscale detection found 59.9%
+  of the sample effectively grayscale, a 19.9-point gap from the metadata proxy's 40% night
   estimate. Decision: use the pixel-based check directly wherever day/night status affects a
   downstream choice (e.g. the augmentation pipeline's selective grayscale targeting), rather than
   the metadata proxy.
-- **26 near-duplicate pairs** found in the 390-image sample via perceptual hashing — a real signal
+- **61 near-duplicate pairs** found in the 633-image sample via perceptual hashing — a real signal
   to deduplicate before creating train/val/test splits.
 - **Zero corrupted images** in the sample; not a concern at current scale, worth a full-dataset
   pass before final training.
@@ -84,12 +84,12 @@ Structure inspection, class balance, image statistics, and quality checks, run a
 - **Extreme scale variation**: from bounding-box annotations (65,112 boxes, 63,025 images — a
   partial subset), the median animal occupies under 3% of frame area, and a third of annotated
   images are under 2%. More extreme than a casual "animals appear at different distances"
-  assumption. Flagged as a follow-up to revisit against the augmentation spec's crop-scale range
-  when augmentation is implemented.
-- **Occlusion has no reliable automatic proxy** without segmentation masks. `notebooks/eda.ipynb`
-  has a manual tagging tool — run it yourself, tag a sample grid as clear/partial/heavy, save to
-  `data/occlusion_tags.json`, then re-run `scripts/generate_gap_analysis_report.py`. This step is
-  intentionally left open rather than faked.
+  assumption. This is what drove the augmentation pipeline's crop-scale range being widened from
+  0.7-1.0 to 0.4-1.0 (see the augmentation section below).
+- **Occlusion has no reliable automatic proxy** without segmentation masks, so a 20-image sample
+  was manually tagged clear/partial/heavy via the `notebooks/eda.ipynb` tagging tool: 8 heavy
+  (40%), 7 clear (35%), 5 partial (25%). Occlusion is common enough in this sample to matter —
+  consistent with the erasing-based augmentation step targeting exactly this gap.
 
 ## Augmentation pipeline
 
