@@ -1,6 +1,11 @@
-import pytest
+from pathlib import Path
 
-from src.localization.detector import bbox_to_absolute, filter_animal_detections
+import pytest
+from PIL import Image
+
+from src.localization.detector import bbox_to_absolute, filter_animal_detections, load_detector, run_detection
+
+SAMPLE_IMAGES_DIR = Path(__file__).resolve().parents[1] / "data" / "raw" / "images"
 
 
 def test_bbox_to_absolute_converts_normalized_to_pixels():
@@ -32,3 +37,15 @@ def test_filter_animal_detections_excludes_low_confidence():
 
     assert len(result) == 1
     assert result[0]["conf"] == 0.5
+
+
+@pytest.mark.skipif(not SAMPLE_IMAGES_DIR.exists(), reason="requires downloaded sample images")
+def test_run_detection_returns_detections_for_real_image():
+    detector = load_detector()
+    sample_path = sorted(SAMPLE_IMAGES_DIR.glob("*.jpg"))[0]
+    image = Image.open(sample_path)
+
+    result = run_detection(detector, image, image_id=str(sample_path))
+
+    assert "detections" in result
+    assert isinstance(result["detections"], list)
