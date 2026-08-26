@@ -29,6 +29,11 @@ with open(BBOX_PATH, encoding="utf-8") as f:
 
 gt_annotations = pd.DataFrame(bbox_data["annotations"])
 gt_images = pd.DataFrame(bbox_data["images"])[["id", "file_name"]]
+if gt_images["file_name"].duplicated().any():
+    raise SystemExit(
+        "Ground-truth images have duplicate file_name values -- the filename-based merge below "
+        "would silently pool boxes from unrelated images. Join on image id instead."
+    )
 gt_by_file = gt_annotations.merge(gt_images, left_on="image_id", right_on="id")
 
 per_image_recall = []
@@ -39,7 +44,9 @@ for result in detection_results:
         continue  # this sample image has no ground-truth bbox annotation
 
     ground_truth_boxes = [tuple(round(v) for v in bbox) for bbox in gt_rows["bbox"]]
-    detected_boxes = [tuple(c["bbox_absolute"]) for c in result["crops"]]
+    # Compare against the raw detected box, not the classifier-input expanded crop box --
+    # the expansion margin isn't part of what the detector actually found.
+    detected_boxes = [tuple(c["bbox_detected"]) for c in result["crops"]]
 
     match_result = match_detections_to_ground_truth(detected_boxes, ground_truth_boxes, iou_threshold=0.5)
     per_image_recall.append({"file": filename, **match_result})

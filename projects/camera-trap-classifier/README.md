@@ -140,7 +140,7 @@ downloaded model.
 
 - **531 of 633 sample images** produced at least one animal detection (617 crops total) at the
   MegaDetector-documented "typical" confidence threshold (0.2).
-- **90.8% recall** (325/358 ground-truth animals detected, IoU >= 0.5) on the 314 sample images
+- **92.5% recall** (331/358 ground-truth animals detected, IoU >= 0.5) on the 314 sample images
   that have ground-truth bounding-box annotations. This is a small-sample sanity check, not the
   full mAP/missed-detection-by-condition analysis planned for the dedicated evaluation stage —
   that needs real train/val/test splits to be meaningful.

@@ -41,7 +41,14 @@ for image_path in image_paths:
 
         crop_filename = f"{image_path.stem}_crop{i}.jpg"
         crop.convert("RGB").save(CROPS_DIR / crop_filename)
-        crops.append({"crop_file": crop_filename, "bbox_absolute": list(bbox_expanded), "confidence": detection["conf"]})
+        crops.append({
+            "crop_file": crop_filename,
+            "bbox_absolute": list(bbox_expanded),
+            # Raw MegaDetector box (pre-expansion) -- kept separately so recall/IoU evaluation
+            # compares against what the detector actually found, not the classifier-input margin.
+            "bbox_detected": list(bbox_abs),
+            "confidence": detection["conf"],
+        })
         crop_count += 1
 
     all_results.append({"source_image": image_path.name, "crops": crops})
