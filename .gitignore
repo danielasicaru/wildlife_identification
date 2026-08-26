@@ -4,7 +4,6 @@ __pycache__/
 venv/
 mlruns/
 projects/*/data/
-projects/*/reports/
 .env
 *.egg-info/
 .pytest_cache/
