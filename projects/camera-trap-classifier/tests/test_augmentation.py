@@ -57,3 +57,85 @@ def test_val_transform_is_deterministic():
     result_b = transform(img)
 
     assert torch.allclose(result_a, result_b)
+
+
+from torchvision.transforms import v2
+
+from src.data.augmentation import build_train_transform
+
+
+def test_train_transform_produces_correct_shape_and_dtype():
+    for is_minority in (True, False):
+        transform = build_train_transform(is_minority=is_minority)
+        img = _sample_image()
+
+        result = transform(img)
+
+        assert result.shape == (3, 224, 224)
+        assert result.dtype == torch.float32
+
+
+def _find_random_apply(steps, wrapped_type):
+    for step in steps:
+        if isinstance(step, v2.RandomApply):
+            inner = step.transforms[0] if hasattr(step, "transforms") else step[0]
+            if isinstance(inner, wrapped_type):
+                return step
+    return None
+
+
+def test_minority_crop_is_always_applied_not_wrapped():
+    transform = build_train_transform(is_minority=True)
+
+    crop_steps = [s for s in transform.transforms if isinstance(s, v2.RandomResizedCrop)]
+    wrapped_crop = _find_random_apply(transform.transforms, v2.RandomResizedCrop)
+
+    assert len(crop_steps) == 1  # applied directly, p=1.0, no RandomApply wrapper needed
+    assert wrapped_crop is None
+
+
+def test_majority_crop_is_wrapped_with_probability_point_eight():
+    transform = build_train_transform(is_minority=False)
+
+    wrapped_crop = _find_random_apply(transform.transforms, v2.RandomResizedCrop)
+
+    assert wrapped_crop is not None
+    assert wrapped_crop.p == pytest.approx(0.8)
+
+
+def test_erasing_probability_differs_majority_minority():
+    majority = build_train_transform(is_minority=False)
+    minority = build_train_transform(is_minority=True)
+
+    majority_erasing = next(s for s in majority.transforms if isinstance(s, v2.RandomErasing))
+    minority_erasing = next(s for s in minority.transforms if isinstance(s, v2.RandomErasing))
+
+    assert majority_erasing.p == pytest.approx(0.5)
+    assert minority_erasing.p == pytest.approx(0.3)
+
+
+def test_hue_saturation_jitter_only_present_for_majority():
+    majority = build_train_transform(is_minority=False)
+    minority = build_train_transform(is_minority=True)
+
+    majority_hue = _find_random_apply(majority.transforms, v2.ColorJitter)
+    minority_hue_jitters = [
+        s for s in minority.transforms
+        if isinstance(s, v2.RandomApply) and isinstance(s.transforms[0], v2.ColorJitter)
+        and s.transforms[0].hue is not None
+    ]
+
+    assert majority_hue is not None
+    assert minority_hue_jitters == []
+
+
+def test_gaussian_noise_only_present_for_majority():
+    majority = build_train_transform(is_minority=False)
+    minority = build_train_transform(is_minority=True)
+
+    majority_noise = _find_random_apply(majority.transforms, v2.GaussianNoise)
+    minority_noise = _find_random_apply(minority.transforms, v2.GaussianNoise)
+
+    assert majority_noise is not None
+    assert majority_noise.p == pytest.approx(0.2)
+    assert minority_noise is None

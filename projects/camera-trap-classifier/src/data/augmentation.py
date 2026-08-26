@@ -28,3 +28,51 @@ def build_val_transform() -> v2.Compose:
         v2.ToDtype(torch.float32, scale=True),
         v2.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
+
+
+def build_train_transform(is_minority: bool) -> v2.Compose:
+    """Training augmentation pipeline with differential per-class probabilities.
+
+    Probabilities and parameters are pinned to the augmentation design spec's training pipeline
+    table. GaussianNoise's sigma is a fixed midpoint (0.02) representing the spec's 0.01-0.03
+    range, since GaussianNoise doesn't support a sigma range natively.
+    """
+    steps = [
+        v2.ToImage(),
+        v2.ToDtype(torch.uint8, scale=True),
+        v2.RandomHorizontalFlip(p=0.5),
+        v2.RandomApply([v2.RandomRotation(degrees=15)], p=0.3),
+    ]
+
+    crop = v2.RandomResizedCrop(MODEL_INPUT_SIZE, scale=(0.4, 1.0), ratio=(0.9, 1.1))
+    if is_minority:
+        steps.append(crop)  # p=1.0 per spec: always applied, no wrapper needed
+    else:
+        steps.append(v2.RandomApply([crop], p=0.8))
+
+    erasing_p = 0.3 if is_minority else 0.5
+    steps.append(v2.RandomErasing(p=erasing_p, scale=(0.1, 0.2)))
+
+    brightness_jitter = (
+        v2.ColorJitter(brightness=0.1) if is_minority
+        else v2.ColorJitter(brightness=0.2, contrast=0.15)
+    )
+    steps.append(v2.RandomApply([brightness_jitter], p=0.4))
+
+    grayscale_p = 0.05 if is_minority else 0.15
+    steps.append(v2.RandomGrayscale(p=grayscale_p))
+
+    if not is_minority:
+        steps.append(v2.RandomApply([v2.ColorJitter(hue=0.05, saturation=0.1)], p=0.3))
+
+    steps += [
+        v2.Resize((MODEL_INPUT_SIZE, MODEL_INPUT_SIZE)),
+        v2.ToDtype(torch.float32, scale=True),
+    ]
+
+    if not is_minority:
+        steps.append(v2.RandomApply([v2.GaussianNoise(sigma=0.02)], p=0.2))
+
+    steps.append(v2.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD))
+
+    return v2.Compose(steps)
