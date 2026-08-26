@@ -241,8 +241,33 @@ nb["cells"] = [
     ),
     nbf.v4.new_markdown_cell(
         "## Augmentation outputs\n\n"
-        "Placeholder section — populated once the augmentation pipeline is implemented. Will show "
-        "before/after examples for each transform in the augmentation pipeline design."
+        "Before/after examples using the actual training transform pipeline "
+        "(`src.data.augmentation.build_train_transform`)."
+    ),
+    nbf.v4.new_code_cell(
+        "import torch\n"
+        "from src.data.augmentation import build_train_transform, minority_species\n\n"
+        "aug_minority = minority_species(classes[\"count\"])\n"
+        "print(f\"{len(aug_minority)} of {len(classes)} species are minority class\")"
+    ),
+    nbf.v4.new_code_cell(
+        "aug_sample_path = valid_paths[0]\n"
+        "aug_original = PILImage.open(aug_sample_path)\n\n"
+        "aug_train_transform = build_train_transform(is_minority=False)\n\n"
+        "fig, axes = plt.subplots(2, 4, figsize=(16, 8))\n"
+        "axes[0, 0].imshow(aug_original)\n"
+        "axes[0, 0].set_title(\"Original\")\n"
+        "axes[0, 0].axis(\"off\")\n\n"
+        "for i in range(1, 8):\n"
+        "    ax = axes.flat[i]\n"
+        "    augmented = aug_train_transform(aug_original)\n"
+        "    denorm = augmented * torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1) \\\n"
+        "        + torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)\n"
+        "    ax.imshow(denorm.clamp(0, 1).permute(1, 2, 0).numpy())\n"
+        "    ax.set_title(f\"Augmented {i}\")\n"
+        "    ax.axis(\"off\")\n\n"
+        "plt.tight_layout()\n"
+        "plt.show()"
     ),
 ]
 
