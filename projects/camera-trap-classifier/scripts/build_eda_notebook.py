@@ -330,6 +330,47 @@ nb["cells"] = [
         "plt.tight_layout()\n"
         "plt.show()"
     ),
+    nbf.v4.new_markdown_cell(
+        "## Localization (MegaDetector)\n\n"
+        "Bounding boxes and crops produced by `scripts/run_localization.py` "
+        "(`src/localization/detector.py`, `src/localization/crop.py`)."
+    ),
+    nbf.v4.new_code_cell(
+        "import json\n"
+        "from PIL import Image as PILImage, ImageDraw\n\n"
+        "LOCALIZATION_DIR = Path.cwd().parent / \"data\" / \"localization\"\n"
+        "with open(LOCALIZATION_DIR / \"detections.json\") as lf:\n"
+        "    localization_results = json.load(lf)\n\n"
+        "with_animal = [r for r in localization_results if r[\"crops\"]]\n"
+        "print(f\"{len(with_animal)}/{len(localization_results)} sample images had an animal detection\")"
+    ),
+    nbf.v4.new_markdown_cell("Detected bounding boxes drawn on the original frame, for a few sample images:"),
+    nbf.v4.new_code_cell(
+        "fig, axes = plt.subplots(2, 3, figsize=(15, 10))\n"
+        "for ax, result in zip(axes.flat, with_animal[:6]):\n"
+        "    img_path = IMAGES_DIR / result[\"source_image\"]\n"
+        "    img = PILImage.open(img_path).convert(\"RGB\")\n"
+        "    draw = ImageDraw.Draw(img)\n"
+        "    for crop_info in result[\"crops\"]:\n"
+        "        x, y, w, h = crop_info[\"bbox_absolute\"]\n"
+        "        draw.rectangle([x, y, x + w, y + h], outline=\"red\", width=6)\n"
+        "    ax.imshow(img)\n"
+        "    ax.set_title(f\"{result['source_image']}\", fontsize=8)\n"
+        "    ax.axis(\"off\")\n"
+        "plt.tight_layout()\n"
+        "plt.show()"
+    ),
+    nbf.v4.new_markdown_cell("Cropped animal images that will feed the classifier:"),
+    nbf.v4.new_code_cell(
+        "crop_paths = sorted((LOCALIZATION_DIR / \"crops\").glob(\"*.jpg\"))[:8]\n"
+        "fig, axes = plt.subplots(2, 4, figsize=(16, 8))\n"
+        "for ax, crop_path in zip(axes.flat, crop_paths):\n"
+        "    ax.imshow(PILImage.open(crop_path))\n"
+        "    ax.set_title(crop_path.name, fontsize=7)\n"
+        "    ax.axis(\"off\")\n"
+        "plt.tight_layout()\n"
+        "plt.show()"
+    ),
 ]
 
 NOTEBOOK_PATH.parent.mkdir(parents=True, exist_ok=True)
