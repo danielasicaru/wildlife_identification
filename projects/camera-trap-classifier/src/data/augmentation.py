@@ -66,6 +66,8 @@ def build_train_transform(is_minority: bool) -> v2.Compose:
         steps.append(v2.RandomApply([v2.ColorJitter(hue=0.05, saturation=0.1)], p=0.3))
 
     steps += [
+        # No-op when the crop step above fired (it already outputs MODEL_INPUT_SIZE), but
+        # required when it didn't (majority images that skip the p=0.8 crop still need resizing).
         v2.Resize((MODEL_INPUT_SIZE, MODEL_INPUT_SIZE)),
         v2.ToDtype(torch.float32, scale=True),
     ]
