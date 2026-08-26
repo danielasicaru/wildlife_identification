@@ -20,9 +20,9 @@ production-shaped FastAPI inference service.
 **Dataset:** Caltech Camera Traps (via LILA BC), paired with the "Recognition in Terra Incognita"
 benchmark for cross-site generalization.
 
-**Status:** dataset characterization functionally complete. One manual step remains open: occlusion
-tagging (see "Key findings" below). Augmentation, localization, classifier training, evaluation,
-and serving not yet started.
+**Status:** dataset characterization and augmentation pipeline functionally complete. One manual
+step remains open: occlusion tagging (see "Key findings" below). Localization, classifier
+training, evaluation, and serving not yet started.
 
 ## Setup
 
@@ -79,6 +79,34 @@ Structure inspection, class balance, image statistics, and quality checks, run a
   has a manual tagging tool — run it yourself, tag a sample grid as clear/partial/heavy, save to
   `data/occlusion_tags.json`, then re-run `scripts/generate_gap_analysis_report.py`. This step is
   intentionally left open rather than faked.
+
+## Augmentation pipeline
+
+`src/data/augmentation.py` implements the design spec's training/validation transform pipelines
+with `torchvision.transforms.v2`, differential per-class probabilities, and a
+`WeightedRandomSampler`-ready weighting function. 11 unit tests cover shape/dtype correctness,
+crop-wrapping behavior (minority applied unconditionally, majority wrapped at p=0.8), and
+per-step probability differences between majority and minority classes.
+
+- [notebooks/eda.ipynb](notebooks/eda.ipynb) — before/after augmented grids (majority pipeline,
+  and a majority-vs-minority side-by-side with a fixed seed), plus a raw-count-vs-expected-draws
+  chart showing the oversampling mechanism's effect on effective class balance
+
+### Deviations from the original spec
+
+- **Crop scale widened from 0.7-1.0 to 0.4-1.0** after the gap analysis found a third of annotated
+  animals occupy under 2% of frame area — see [ADR 0003](../../docs/decisions/0003-widen-crop-scale-range.md).
+- **Gaussian noise sigma is a fixed 0.02**, not a sampled 0.01-0.03 range — `torchvision`'s
+  `GaussianNoise` doesn't support range sampling natively — see
+  [ADR 0004](../../docs/decisions/0004-fixed-gaussian-noise-sigma.md).
+- **Normalization uses ImageNet mean/std**, not dataset-computed statistics, matching the
+  pretrained-backbone transfer-learning approach planned for classifier training.
+
+### Not yet done
+
+The pipeline exists as standalone `build_train_transform`/`build_val_transform` functions; it
+isn't wired into a `Dataset`/`DataLoader` yet, since that depends on the localization stage's
+cropped-image outputs, which don't exist until MegaDetector integration is implemented.
 
 ## Tradeoffs
 

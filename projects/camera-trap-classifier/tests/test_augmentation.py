@@ -78,8 +78,7 @@ def test_train_transform_produces_correct_shape_and_dtype():
 def _find_random_apply(steps, wrapped_type):
     for step in steps:
         if isinstance(step, v2.RandomApply):
-            inner = step.transforms[0] if hasattr(step, "transforms") else step[0]
-            if isinstance(inner, wrapped_type):
+            if isinstance(step.transforms[0], wrapped_type):
                 return step
     return None
 
@@ -118,14 +117,19 @@ def test_hue_saturation_jitter_only_present_for_majority():
     majority = build_train_transform(is_minority=False)
     minority = build_train_transform(is_minority=True)
 
-    majority_hue = _find_random_apply(majority.transforms, v2.ColorJitter)
+    majority_hue_jitters = [
+        s for s in majority.transforms
+        if isinstance(s, v2.RandomApply) and isinstance(s.transforms[0], v2.ColorJitter)
+        and s.transforms[0].hue is not None
+    ]
     minority_hue_jitters = [
         s for s in minority.transforms
         if isinstance(s, v2.RandomApply) and isinstance(s.transforms[0], v2.ColorJitter)
         and s.transforms[0].hue is not None
     ]
 
-    assert majority_hue is not None
+    assert len(majority_hue_jitters) == 1
+    assert majority_hue_jitters[0].p == pytest.approx(0.3)
     assert minority_hue_jitters == []
 
 

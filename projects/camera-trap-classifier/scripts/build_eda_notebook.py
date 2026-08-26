@@ -269,6 +269,67 @@ nb["cells"] = [
         "plt.tight_layout()\n"
         "plt.show()"
     ),
+    nbf.v4.new_markdown_cell(
+        "### Majority vs. minority: differential augmentation probability\n\n"
+        "Same source image run through both pipeline variants, holding the random seed fixed so "
+        "any visual difference comes from the probability/parameter table (spec section 2), not "
+        "from random chance."
+    ),
+    nbf.v4.new_code_cell(
+        "aug_train_transform_minority = build_train_transform(is_minority=True)\n\n"
+        "fig, axes = plt.subplots(2, 4, figsize=(16, 8))\n"
+        "for row, (label, transform) in enumerate(\n"
+        "    [(\"Majority\", aug_train_transform), (\"Minority\", aug_train_transform_minority)]\n"
+        "):\n"
+        "    torch.manual_seed(0)\n"
+        "    for col in range(4):\n"
+        "        ax = axes[row, col]\n"
+        "        augmented = transform(aug_original)\n"
+        "        denorm = augmented * torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1) \\\n"
+        "            + torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)\n"
+        "        ax.imshow(denorm.clamp(0, 1).permute(1, 2, 0).numpy())\n"
+        "        ax.set_title(f\"{label} {col + 1}\")\n"
+        "        ax.axis(\"off\")\n\n"
+        "plt.tight_layout()\n"
+        "plt.show()"
+    ),
+    nbf.v4.new_markdown_cell(
+        "### Oversampling effect on effective class balance\n\n"
+        "Raw annotation counts vs. the expected number of times each species is drawn per epoch "
+        "under a `WeightedRandomSampler` built from `build_sample_weights` — the mechanism that "
+        "actually balances effective training-set size (spec section 2, distinct from the "
+        "per-step augmentation probabilities above)."
+    ),
+    nbf.v4.new_code_cell(
+        "from src.data.augmentation import build_sample_weights\n\n"
+        "counts = classes[\"count\"]\n"
+        "labels = pd.Series(counts.index.repeat(counts.values))\n"
+        "weights = pd.Series(build_sample_weights(labels, counts), index=labels.index)\n\n"
+        "total_weight = weights.sum()\n"
+        "total_samples = len(labels)\n"
+        "expected_draws = (\n"
+        "    pd.DataFrame({\"label\": labels, \"weight\": weights})\n"
+        "    .groupby(\"label\")[\"weight\"]\n"
+        "    .sum()\n"
+        "    .div(total_weight)\n"
+        "    .mul(total_samples)\n"
+        ")\n\n"
+        "comparison = pd.DataFrame({\"raw_count\": counts, \"expected_draws_per_epoch\": expected_draws})\n"
+        "comparison = comparison.sort_values(\"raw_count\")\n\n"
+        "fig, ax = plt.subplots(figsize=(10, 6))\n"
+        "x = range(len(comparison))\n"
+        "ax.barh(x, comparison[\"raw_count\"], height=0.4, label=\"Raw count\", align=\"edge\")\n"
+        "ax.barh([i + 0.4 for i in x], comparison[\"expected_draws_per_epoch\"], height=0.4,\n"
+        "        label=\"Expected draws/epoch (weighted sampler)\", align=\"edge\")\n"
+        "ax.set_yticks([i + 0.4 for i in x])\n"
+        "ax.set_yticklabels(comparison.index)\n"
+        "ax.set_xscale(\"log\")\n"
+        "ax.set_xlabel(\"Count (log scale)\")\n"
+        "ax.set_title(\"Raw class imbalance vs. oversampling-corrected effective balance\")\n"
+        "ax.legend()\n"
+        "plt.tight_layout()\n"
+        "plt.show()"
+    ),
 ]
 
 NOTEBOOK_PATH.parent.mkdir(parents=True, exist_ok=True)
