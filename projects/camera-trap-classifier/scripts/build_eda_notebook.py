@@ -40,8 +40,9 @@ nb["cells"] = [
     ),
     nbf.v4.new_markdown_cell(
         "## Per-site distribution\n\n"
-        "Species counts by camera location — the cross-site domain gap the design spec calls out. "
-        "Showing the 15 highest-traffic sites for readability; the full 140-site table is in "
+        "Species counts by camera location — exposes the cross-site domain gap models need to "
+        "generalize across. Showing the 15 highest-traffic sites for readability; the full "
+        "140-site table is in "
         "`reports/per_site_distribution.csv`."
     ),
     nbf.v4.new_code_cell(
@@ -272,7 +273,7 @@ nb["cells"] = [
     nbf.v4.new_markdown_cell(
         "### Majority vs. minority: differential augmentation probability\n\n"
         "Same source image run through both pipeline variants, holding the random seed fixed so "
-        "any visual difference comes from the probability/parameter table (spec section 2), not "
+        "any visual difference comes from the per-class probability/parameter differences, not "
         "from random chance."
     ),
     nbf.v4.new_code_cell(
@@ -297,8 +298,8 @@ nb["cells"] = [
         "### Oversampling effect on effective class balance\n\n"
         "Raw annotation counts vs. the expected number of times each species is drawn per epoch "
         "under a `WeightedRandomSampler` built from `build_sample_weights` — the mechanism that "
-        "actually balances effective training-set size (spec section 2, distinct from the "
-        "per-step augmentation probabilities above)."
+        "actually balances effective training-set size, distinct from the per-step augmentation "
+        "probabilities above."
     ),
     nbf.v4.new_code_cell(
         "from src.data.augmentation import build_sample_weights\n\n"

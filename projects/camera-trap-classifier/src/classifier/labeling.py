@@ -1,5 +1,5 @@
-"""Per-crop species labeling, per ADR 0006: ground-truth IoU matching where available, single-
-species fallback otherwise, drop when genuinely ambiguous."""
+"""Per-crop species labeling: ground-truth IoU matching where available, single-species fallback
+otherwise, drop when genuinely ambiguous."""
 import pandas as pd
 
 from src.localization.evaluate import iou
@@ -25,8 +25,10 @@ def build_crop_dataframe(
     image_species: dict[str, set[str]],
     image_ground_truth: dict[str, list[tuple[tuple[int, int, int, int], str]]],
 ) -> pd.DataFrame:
-    """Assigns a species label to each crop, per ADR 0006's three-tier rule. Returns a DataFrame
-    with columns [crop_file, source_image, species]; ambiguous/unmatched crops are excluded.
+    """Assigns a species label to each crop using a three-tier rule: match against ground-truth
+    boxes by IoU where available, fall back to the image's single annotated species where
+    unambiguous, otherwise drop the crop. Returns a DataFrame with columns
+    [crop_file, source_image, species]; ambiguous/unmatched crops are excluded.
     """
     rows = []
     for result in detections:

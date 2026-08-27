@@ -69,7 +69,7 @@ including `empty`).
 
 - **Severe class imbalance**: 8349x between the most and least common species (opossum vs. pig).
   Directly informs the oversampling and differential-augmentation-probability design in the
-  augmentation spec.
+  augmentation pipeline below.
 - **The hour-of-day day/night proxy is unreliable**: pixel-based grayscale detection found 59.9%
   of the sample effectively grayscale, a 19.9-point gap from the metadata proxy's 40% night
   estimate. Decision: use the pixel-based check directly wherever day/night status affects a
@@ -93,7 +93,7 @@ including `empty`).
 
 ## Augmentation pipeline
 
-`src/data/augmentation.py` implements the design spec's training/validation transform pipelines
+`src/data/augmentation.py` implements the training/validation transform pipelines
 with `torchvision.transforms.v2`, differential per-class probabilities, and a
 `WeightedRandomSampler`-ready weighting function. 11 unit tests cover shape/dtype correctness,
 crop-wrapping behavior (minority applied unconditionally, majority wrapped at p=0.8), and
@@ -103,7 +103,7 @@ per-step probability differences between majority and minority classes.
   and a majority-vs-minority side-by-side with a fixed seed), plus a raw-count-vs-expected-draws
   chart showing the oversampling mechanism's effect on effective class balance
 
-### Deviations from the original spec
+### Deviations from the original design
 
 - **Crop scale widened from 0.7-1.0 to 0.4-1.0** after the gap analysis found a third of annotated
   animals occupy under 2% of frame area — the original range couldn't reach far enough to

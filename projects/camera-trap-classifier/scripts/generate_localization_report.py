@@ -72,9 +72,9 @@ else:
 
 lines += [
     "",
-    "This is a sanity check on a small sample, not the full detector evaluation from design spec "
-    "section 5 (mAP, missed-detection analysis by condition) -- that's deferred to the evaluation "
-    "stage once training/validation splits exist.",
+    "This is a sanity check on a small sample, not a full detector evaluation (mAP, "
+    "missed-detection analysis by condition) -- that's deferred to the evaluation stage once "
+    "training/validation splits exist.",
 ]
 
 REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)

@@ -64,9 +64,8 @@ def main() -> None:
         else:
             f.write(
                 "Not yet tagged. Occlusion has no reliable automatic proxy without segmentation "
-                f"masks (see ADR 0002-style reasoning) -- run the tagging tool in "
-                "`notebooks/eda.ipynb` and save results to `data/occlusion_tags.json`, then "
-                "re-run this script.\n"
+                "masks -- run the tagging tool in `notebooks/eda.ipynb` and save results to "
+                "`data/occlusion_tags.json`, then re-run this script.\n"
             )
 
     print(f"Report written to {REPORT_PATH}")

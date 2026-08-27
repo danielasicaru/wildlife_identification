@@ -30,8 +30,8 @@ def filter_animal_detections(detections: list[dict], min_confidence: float = 0.2
 
 
 def load_detector(model_name: str = "MDV5A") -> PTDetector:
-    """Download (if needed) and load the MegaDetector v5a model. See ADR 0005 for why v5a over
-    the newer v1000 family.
+    """Download (if needed) and load the MegaDetector v5a model, chosen over the newer v1000
+    family for its better-documented, more widely benchmarked behavior.
     """
     model_path = run_detector.try_download_known_detector(model_name)
     return PTDetector(model_path)

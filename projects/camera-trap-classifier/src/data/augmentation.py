@@ -1,4 +1,4 @@
-"""Training/validation augmentation pipelines, per the augmentation design spec section 2."""
+"""Training/validation augmentation pipelines."""
 import pandas as pd
 import torch
 from torchvision.transforms import v2
@@ -33,9 +33,8 @@ def build_val_transform() -> v2.Compose:
 def build_train_transform(is_minority: bool) -> v2.Compose:
     """Training augmentation pipeline with differential per-class probabilities.
 
-    Probabilities and parameters are pinned to the augmentation design spec's training pipeline
-    table. GaussianNoise's sigma is a fixed midpoint (0.02) representing the spec's 0.01-0.03
-    range, since GaussianNoise doesn't support a sigma range natively.
+    GaussianNoise's sigma is a fixed midpoint (0.02) standing in for a 0.01-0.03 range, since
+    GaussianNoise doesn't support a sigma range natively.
     """
     steps = [
         v2.ToImage(),

@@ -30,9 +30,9 @@ def match_detections_to_ground_truth(
     overlaps it at IoU >= iou_threshold. Returns recall = matched / total ground truth.
 
     Recall (not precision or mAP) is the primary metric here because a missed detection is an
-    end-to-end failure mode (the classifier never sees that animal at all) -- see design spec
-    section 5's detector evaluation rationale. Full mAP is deferred to the dedicated evaluation
-    stage once a real held-out annotated set is used, not the small localization sanity check here.
+    end-to-end failure mode -- the classifier never sees that animal at all. Full mAP is deferred
+    to the dedicated evaluation stage once a real held-out annotated set is used, not the small
+    localization sanity check here.
     """
     if not ground_truth:
         return {"recall": None, "matched_count": 0, "ground_truth_count": 0}
