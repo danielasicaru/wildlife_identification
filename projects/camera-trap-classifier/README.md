@@ -20,8 +20,8 @@ production-shaped FastAPI inference service.
 **Dataset:** Caltech Camera Traps (via LILA BC), paired with the "Recognition in Terra Incognita"
 benchmark for cross-site generalization.
 
-**Status:** dataset characterization, augmentation pipeline, and localization functionally
-complete. Classifier training, evaluation, and serving not yet started.
+**Status:** dataset characterization, augmentation pipeline, localization, and a first classifier
+training comparison functionally complete. Full evaluation and serving not yet started.
 
 ## Setup
 
@@ -31,8 +31,9 @@ conda activate wildlife-id
 pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-headless imagehash numpy pillow
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128  # or the CPU index if no GPU
 pip install --no-deps megadetector clipboard dill fastquadtree humanfriendly jsonpickle mkl \
-    scikit-learn thop ultralytics-yolov5 seaborn  # --no-deps avoids a pip dependency conflict
-    # with opencv-python-headless; see the localization pipeline plan for why
+    scikit-learn thop ultralytics-yolov5 seaborn  # --no-deps avoids a pip conflict between
+    # megadetector's opencv-python requirement and the already-installed opencv-python-headless
+pip install mlflow  # full install is fine here -- no opencv dependency to conflict with
 ```
 
 Download the annotation files and a stratified image sample:
@@ -46,6 +47,12 @@ Run localization (downloads the ~280MB MegaDetector v5a weights on first run):
 ```bash
 python scripts/run_localization.py
 python scripts/generate_localization_report.py
+```
+
+Train and compare classifier backbones (MLflow tracking, local file store):
+
+```bash
+python scripts/train_classifier.py
 ```
 
 Run tests:
@@ -114,11 +121,8 @@ per-step probability differences between majority and minority classes.
 - **Normalization uses ImageNet mean/std**, not dataset-computed statistics, matching the
   pretrained-backbone transfer-learning approach planned for classifier training.
 
-### Not yet done
-
-The pipeline exists as standalone `build_train_transform`/`build_val_transform` functions; it
-isn't wired into a `Dataset`/`DataLoader` yet, since that depends on the localization stage's
-cropped-image outputs, which don't exist until MegaDetector integration is implemented.
+These transforms are now wired into a `Dataset`/`DataLoader` in `src/classifier/dataset.py`,
+consuming the localization stage's cropped-image outputs — see "Classifier training" below.
 
 ## Localization
 
@@ -148,6 +152,37 @@ downloaded model.
   widely benchmarked behavior — worth revisiting with a documented comparison if recall turns out
   to be a bottleneck once the classifier stage is running.
 
+## Classifier training
+
+`src/classifier/` labels each MegaDetector crop with a species (`labeling.py`, ground-truth IoU
+matching where available, single-species fallback otherwise), splits crops into train/val/test
+keeping near-duplicate source frames together (`split.py`), wraps them in a `Dataset` reusing the
+augmentation pipeline (`dataset.py`), and provides a backbone factory (`models.py`, ResNet50 /
+EfficientNet-B0 / ViT-B/16) plus class-weighted train/evaluate loop functions (`engine.py`). 22
+unit tests cover the labeling rules, split grouping, dataset wiring, model output shapes, and
+loss/loop correctness.
+
+- `scripts/train_classifier.py` — labels crops, splits them, and trains + compares all three
+  backbones with class-weighted cross-entropy and a `WeightedRandomSampler`, logging params and
+  per-epoch metrics to local-file MLflow (`mlruns/`, not committed)
+- [notebooks/eda.ipynb](notebooks/eda.ipynb) — per-backbone metrics pulled from MLflow and a
+  final-accuracy comparison chart
+
+### Key findings
+
+- **594 crops labeled across 19 species** from the 617 MegaDetector crops (a handful dropped as
+  genuinely ambiguous — multi-species source images with no ground-truth box to disambiguate
+  which crop is which species). Split 416/90/88 (train/val/test), grouped so the 61 near-duplicate
+  source-image pairs found during quality checks never land in different splits.
+- **First 3-backbone comparison run** (5 epochs, ~500 training crops, class-weighted loss):
+  ResNet50 22.2%, EfficientNet-B0 20.0%, ViT-B/16 42.2% final validation accuracy. ViT-B/16's lead
+  is a real, reproducible result of this specific run (seed-locked, logged to MLflow) — not a
+  general claim about which architecture is "best" at this sample size. With single-digit
+  per-species sample counts for several classes, some species appear in the training split only,
+  and these numbers should be read as a pipeline-correctness sanity check (data flows correctly
+  from crops through augmentation, model, class-weighted loss, to MLflow), not as a real
+  performance benchmark. A full-dataset run is future work.
+
 ## Tradeoffs
 
 - Only annotation metadata was downloaded initially, not the full ~105GB image archive; a small
@@ -158,3 +193,8 @@ downloaded model.
 - MegaDetector (pretrained) is used for localization rather than training a custom detector, to
   keep engineering effort focused on classification, optimization, and deployment rather than
   object detection research.
+- The classifier training split doesn't force hard per-class stratification across train/val/test
+  — with per-species sample counts as low as single digits dataset-wide, that would either crash
+  or require dropping already-scarce species entirely. The split keeps near-duplicate source
+  images grouped instead, accepting that some rare species may be train-only as a known,
+  documented consequence of the severe class imbalance found during characterization.
