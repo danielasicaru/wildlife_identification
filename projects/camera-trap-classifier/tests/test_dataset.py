@@ -4,6 +4,7 @@ import pytest
 import torch
 from PIL import Image
 
+import src.classifier.dataset as dataset_module
 from src.classifier.dataset import CropDataset
 
 
@@ -32,14 +33,24 @@ def test_crop_dataset_length_matches_dataframe():
     assert len(dataset) == 2
 
 
-def test_crop_dataset_train_mode_uses_minority_transform(tmp_path):
+def test_crop_dataset_passes_correct_is_minority_flag_per_row(tmp_path, monkeypatch):
     _write_sample_image(tmp_path / "crop0.jpg")
-    df = pd.DataFrame({"crop_file": ["crop0.jpg"], "species": ["badger"]})
+    _write_sample_image(tmp_path / "crop1.jpg")
+    df = pd.DataFrame({"crop_file": ["crop0.jpg", "crop1.jpg"], "species": ["badger", "fox"]})
+
+    calls = []
+    real_build_train_transform = dataset_module.build_train_transform
+
+    def spy(is_minority):
+        calls.append(is_minority)
+        return real_build_train_transform(is_minority=is_minority)
+
+    monkeypatch.setattr(dataset_module, "build_train_transform", spy)
 
     dataset = CropDataset(
-        df, crops_dir=tmp_path, species_to_index={"badger": 0}, is_train=True, minority_species={"badger"}
+        df, crops_dir=tmp_path, species_to_index={"badger": 0, "fox": 1}, is_train=True, minority_species={"badger"}
     )
-    image, label = dataset[0]
+    dataset[0]  # badger -- minority
+    dataset[1]  # fox -- not minority
 
-    assert image.shape == (3, 224, 224)
-    assert image.dtype == torch.float32
+    assert calls == [True, False]

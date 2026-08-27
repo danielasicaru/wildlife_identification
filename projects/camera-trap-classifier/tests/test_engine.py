@@ -17,6 +17,15 @@ def test_compute_class_weights_inverse_frequency_ordered_by_index():
     assert weights[0] > weights[1]
 
 
+def test_compute_class_weights_defaults_to_one_for_species_absent_from_labels():
+    labels = pd.Series(["fox", "fox"])
+    species_to_index = {"fox": 0, "badger": 1}  # badger has zero rows in labels
+
+    weights = compute_class_weights(labels, species_to_index)
+
+    assert weights[1] == pytest.approx(1.0)
+
+
 def test_train_one_epoch_returns_finite_loss():
     x = torch.randn(8, 3, 4, 4)
     y = torch.randint(0, 2, (8,))

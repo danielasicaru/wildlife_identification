@@ -84,6 +84,18 @@ crop_df["group_id"] = crop_df["source_image"].map(groups)
 crop_df["split"] = split_groups(crop_df, seed=SEED)
 
 train_df = crop_df[crop_df["split"] == "train"].reset_index(drop=True)
+
+# The split is group-level (near-duplicate-aware), not per-class stratified -- a species can end
+# up entirely outside train_df. A class the model never trains on can't be meaningfully predicted,
+# so such species are dropped from val/test evaluation and from the model's output classes
+# entirely, rather than silently scoring the model on classes it was never shown.
+train_species = set(train_df["species"].unique())
+species_without_train_examples = set(crop_df["species"].unique()) - train_species
+if species_without_train_examples:
+    print(f"Dropping {len(species_without_train_examples)} species with zero train examples: {sorted(species_without_train_examples)}")
+    crop_df = crop_df[crop_df["species"].isin(train_species)].reset_index(drop=True)
+    train_df = crop_df[crop_df["split"] == "train"].reset_index(drop=True)
+
 val_df = crop_df[crop_df["split"] == "val"].reset_index(drop=True)
 test_count = int((crop_df["split"] == "test").sum())
 print(f"train={len(train_df)}, val={len(val_df)}, test={test_count}")
