@@ -372,6 +372,36 @@ nb["cells"] = [
         "plt.tight_layout()\n"
         "plt.show()"
     ),
+    nbf.v4.new_markdown_cell(
+        "## Classifier training comparison\n\n"
+        "Per-epoch metrics logged by `scripts/train_classifier.py` to local-file MLflow "
+        "(`mlruns/`, gitignored). Small-sample sanity run on MegaDetector crops, not a "
+        "final-performance claim -- no full evaluation (per-class precision/recall, confusion "
+        "matrix, failure analysis) has been run yet."
+    ),
+    nbf.v4.new_code_cell(
+        "import os\n"
+        "os.environ.setdefault(\"MLFLOW_ALLOW_FILE_STORE\", \"true\")\n"
+        "import mlflow\n\n"
+        "mlflow.set_tracking_uri((Path.cwd().parent / \"mlruns\").as_uri())\n"
+        "experiment = mlflow.get_experiment_by_name(\"camera-trap-classifier\")\n"
+        "runs = mlflow.search_runs(experiment_ids=[experiment.experiment_id]) if experiment else None\n"
+        "if runs is not None and not runs.empty:\n"
+        "    display_cols = [c for c in runs.columns if c.startswith(\"params.\") or c.startswith(\"metrics.final\")]\n"
+        "    print(runs[[\"tags.mlflow.runName\"] + display_cols].to_string(index=False))\n"
+        "else:\n"
+        "    print(\"No MLflow runs found -- run scripts/train_classifier.py first.\")"
+    ),
+    nbf.v4.new_markdown_cell("Validation accuracy per backbone, final epoch:"),
+    nbf.v4.new_code_cell(
+        "if runs is not None and not runs.empty:\n"
+        "    fig, ax = plt.subplots(figsize=(6, 4))\n"
+        "    ax.bar(runs[\"tags.mlflow.runName\"], runs[\"metrics.final_val_accuracy\"])\n"
+        "    ax.set_ylabel(\"Final validation accuracy\")\n"
+        "    ax.set_title(\"Backbone comparison (small-sample sanity run)\")\n"
+        "    plt.tight_layout()\n"
+        "    plt.show()"
+    ),
 ]
 
 NOTEBOOK_PATH.parent.mkdir(parents=True, exist_ok=True)
