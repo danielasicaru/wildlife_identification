@@ -33,24 +33,38 @@ def test_crop_dataset_length_matches_dataframe():
     assert len(dataset) == 2
 
 
-def test_crop_dataset_passes_correct_is_minority_flag_per_row(tmp_path, monkeypatch):
+def test_crop_dataset_builds_both_transforms_once_at_init(tmp_path, monkeypatch):
+    df = pd.DataFrame({"crop_file": ["crop0.jpg", "crop1.jpg"], "species": ["badger", "fox"]})
+
+    calls = []
+
+    def spy(is_minority):
+        calls.append(is_minority)
+        return lambda img: f"transform(minority={is_minority})"
+
+    monkeypatch.setattr(dataset_module, "build_train_transform", spy)
+
+    CropDataset(df, crops_dir=tmp_path, species_to_index={"badger": 0, "fox": 1}, is_train=True, minority_species={"badger"})
+
+    # Built exactly once each at construction time, not once per __getitem__ call.
+    assert calls == [True, False]
+
+
+def test_crop_dataset_selects_correct_precomputed_transform_per_row(tmp_path, monkeypatch):
     _write_sample_image(tmp_path / "crop0.jpg")
     _write_sample_image(tmp_path / "crop1.jpg")
     df = pd.DataFrame({"crop_file": ["crop0.jpg", "crop1.jpg"], "species": ["badger", "fox"]})
 
-    calls = []
-    real_build_train_transform = dataset_module.build_train_transform
-
-    def spy(is_minority):
-        calls.append(is_minority)
-        return real_build_train_transform(is_minority=is_minority)
-
-    monkeypatch.setattr(dataset_module, "build_train_transform", spy)
+    monkeypatch.setattr(
+        dataset_module, "build_train_transform", lambda is_minority: (lambda img: f"minority={is_minority}")
+    )
 
     dataset = CropDataset(
         df, crops_dir=tmp_path, species_to_index={"badger": 0, "fox": 1}, is_train=True, minority_species={"badger"}
     )
-    dataset[0]  # badger -- minority
-    dataset[1]  # fox -- not minority
 
-    assert calls == [True, False]
+    image0, _ = dataset[0]  # badger -- minority
+    image1, _ = dataset[1]  # fox -- not minority
+
+    assert image0 == "minority=True"
+    assert image1 == "minority=False"

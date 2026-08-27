@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 
-from src.data.loader import load_annotations
+from src.data.loader import load_annotations, merge_categories
 
 FIXTURE = {
     "images": [
@@ -44,3 +44,14 @@ def test_load_annotations_image_ids_are_unique(tmp_path):
     images, _, _ = load_annotations(fixture_path)
 
     assert images["id"].is_unique
+
+
+def test_merge_categories_adds_species_name_column(tmp_path):
+    fixture_path = tmp_path / "annotations.json"
+    fixture_path.write_text(json.dumps(FIXTURE))
+    _, annotations, categories = load_annotations(fixture_path)
+
+    merged = merge_categories(annotations, categories)
+
+    assert len(merged) == len(annotations)
+    assert set(merged["name"]) == {"bobcat", "empty"}

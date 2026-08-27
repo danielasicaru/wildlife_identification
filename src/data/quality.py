@@ -24,6 +24,15 @@ def is_opencv_readable(path: Path) -> bool:
     return cv2.imread(str(path), cv2.IMREAD_GRAYSCALE) is not None
 
 
+def is_valid_image(path: Path) -> bool:
+    """True if the file passes both PIL's integrity check and OpenCV's decoder.
+
+    Neither check alone is sufficient: PIL's `is_corrupted` can pass files OpenCV's decoder still
+    rejects, and callers need both to hold before calling `blur_score`.
+    """
+    return not is_corrupted(path) and is_opencv_readable(path)
+
+
 def blur_score(path: Path) -> float:
     """Variance of the Laplacian. Lower means blurrier; threshold must be calibrated per dataset."""
     img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)

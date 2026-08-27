@@ -12,7 +12,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.data.loader import load_annotations
+from src.data.loader import load_annotations, merge_categories
 
 IMAGE_BASE_URL = "https://lilawildlife.blob.core.windows.net/lila-wildlife/caltech-unzipped/cct_images"
 ANNOTATIONS_PATH = Path(__file__).resolve().parents[1] / "data" / "raw" / "caltech_images_20210113.json"
@@ -23,7 +23,7 @@ PER_CLASS_SAMPLE_SIZE = 20
 def main() -> None:
     images, annotations, categories = load_annotations(ANNOTATIONS_PATH)
 
-    merged = annotations.merge(categories, left_on="category_id", right_on="id", suffixes=("", "_cat"))
+    merged = merge_categories(annotations, categories)
     merged = merged.merge(images[["id", "file_name"]], left_on="image_id", right_on="id", suffixes=("", "_img"))
     # An image with multiple animals of the same species has multiple annotation rows here; drop
     # to one row per (species, file) so sampling can't pick the same file twice within a category.

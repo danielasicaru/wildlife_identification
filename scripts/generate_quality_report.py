@@ -1,6 +1,7 @@
 """Runs quality checks on the downloaded sample images and writes a markdown report with
 findings and recommended follow-up actions -- not just raw numbers.
 """
+import json
 import statistics
 import sys
 from pathlib import Path
@@ -9,17 +10,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.data.characterize import metadata_survey
 from src.data.loader import load_annotations
-from src.data.quality import (
-    blur_score,
-    find_near_duplicates,
-    is_corrupted,
-    is_effectively_grayscale,
-    is_opencv_readable,
-)
+from src.data.quality import blur_score, find_near_duplicates, is_effectively_grayscale, is_valid_image
 
 ANNOTATIONS_PATH = Path(__file__).resolve().parents[1] / "data" / "raw" / "caltech_images_20210113.json"
 IMAGES_DIR = Path(__file__).resolve().parents[1] / "data" / "raw" / "images"
 REPORT_PATH = Path(__file__).resolve().parents[1] / "reports" / "quality.md"
+# Persisted so other scripts (e.g. train_classifier.py) don't have to recompute this O(n^2)
+# perceptual-hash comparison from scratch.
+NEAR_DUPLICATES_PATH = Path(__file__).resolve().parents[1] / "data" / "near_duplicates.json"
 
 # Below this Laplacian-variance score, an image is flagged as a blur candidate. Calibrated as the
 # 10th percentile of this sample's own score distribution, not an arbitrary fixed number, since
@@ -32,9 +30,7 @@ def main() -> None:
     if not paths:
         raise SystemExit(f"No images found in {IMAGES_DIR} -- run download_sample_images.py first.")
 
-    # PIL's is_corrupted (Image.verify(), a lightweight structural check) can pass files that
-    # OpenCV's decoder still rejects, so both checks are needed before calling blur_score.
-    corrupted = [p for p in paths if is_corrupted(p) or not is_opencv_readable(p)]
+    corrupted = [p for p in paths if not is_valid_image(p)]
     corrupted_set = set(corrupted)
     valid_paths = [p for p in paths if p not in corrupted_set]
 
@@ -54,7 +50,7 @@ def main() -> None:
 
     scores = {p: blur_score(p) for p in valid_paths}
     sorted_scores = sorted(scores.values())
-    blur_threshold = sorted_scores[len(sorted_scores) * BLUR_PERCENTILE // 100]
+    blur_threshold = statistics.quantiles(sorted_scores, n=100, method="inclusive")[BLUR_PERCENTILE - 1]
     blurry = [p for p, s in scores.items() if s <= blur_threshold]
 
     grayscale_flags = {p: is_effectively_grayscale(p) for p in valid_paths}
@@ -62,6 +58,10 @@ def main() -> None:
     gray_share = n_gray / len(valid_paths)
 
     duplicates = find_near_duplicates(valid_paths)
+
+    NEAR_DUPLICATES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(NEAR_DUPLICATES_PATH, "w", encoding="utf-8") as f:
+        json.dump([[a.name, b.name] for a, b in duplicates], f, indent=2)
 
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(REPORT_PATH, "w", encoding="utf-8") as f:

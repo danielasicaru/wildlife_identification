@@ -22,7 +22,7 @@ from src.classifier.labeling import build_crop_dataframe
 from src.classifier.models import BACKBONES, build_model
 from src.classifier.split import group_images_by_near_duplicates, split_groups
 from src.data.augmentation import build_sample_weights, minority_species
-from src.data.loader import load_annotations
+from src.data.loader import load_annotations, merge_categories
 from src.data.quality import find_near_duplicates
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +31,7 @@ CROPS_DIR = ROOT / "data" / "localization" / "crops"
 ANNOTATIONS_PATH = ROOT / "data" / "raw" / "caltech_images_20210113.json"
 BBOX_PATH = ROOT / "data" / "raw" / "caltech_bboxes_20200316.json"
 IMAGES_DIR = ROOT / "data" / "raw" / "images"
+NEAR_DUPLICATES_PATH = ROOT / "data" / "near_duplicates.json"
 NON_SPECIES = {"empty", "car"}
 SEED = 42
 EPOCHS = 5
@@ -54,7 +55,7 @@ with open(DETECTIONS_PATH, encoding="utf-8") as f:
     detections = json.load(f)
 
 images_df, annotations_df, categories_df = load_annotations(ANNOTATIONS_PATH)
-merged = annotations_df.merge(categories_df, left_on="category_id", right_on="id", suffixes=("", "_cat"))
+merged = merge_categories(annotations_df, categories_df)
 merged = merged.merge(images_df[["id", "file_name"]], left_on="image_id", right_on="id", suffixes=("", "_img"))
 merged = merged[~merged["name"].isin(NON_SPECIES)]
 image_species = merged.groupby("file_name")["name"].apply(set).to_dict()
@@ -77,8 +78,14 @@ crop_df = crop_df[crop_df["species"].map(species_counts) >= MIN_SAMPLES_PER_SPEC
 print(f"{len(crop_df)} labeled crops across {crop_df['species'].nunique()} species")
 
 # --- Near-duplicate-aware split ---
-sample_paths = sorted(IMAGES_DIR.glob("*.jpg"))
-duplicate_pairs = [(a.name, b.name) for a, b in find_near_duplicates(sample_paths)]
+if NEAR_DUPLICATES_PATH.exists():
+    # Reuse the pairs already computed by generate_quality_report.py rather than re-running the
+    # O(n^2) perceptual-hash comparison over the same sample images.
+    with open(NEAR_DUPLICATES_PATH, encoding="utf-8") as f:
+        duplicate_pairs = [tuple(pair) for pair in json.load(f)]
+else:
+    sample_paths = sorted(IMAGES_DIR.glob("*.jpg"))
+    duplicate_pairs = [(a.name, b.name) for a, b in find_near_duplicates(sample_paths)]
 groups = group_images_by_near_duplicates(crop_df["source_image"].unique().tolist(), duplicate_pairs)
 crop_df["group_id"] = crop_df["source_image"].map(groups)
 crop_df["split"] = split_groups(crop_df, seed=SEED)
@@ -146,9 +153,10 @@ for backbone in BACKBONES:
                 f"val_loss={val_metrics['loss']:.4f} val_acc={val_metrics['accuracy']:.3f}"
             )
 
-        final_metrics = evaluate(model, val_loader, criterion, device)
-        results[backbone] = final_metrics
-        mlflow.log_metrics({"final_val_accuracy": final_metrics["accuracy"]})
+        # val_metrics already reflects this exact model/val_loader from the last epoch above --
+        # no need to evaluate a second time.
+        results[backbone] = val_metrics
+        mlflow.log_metrics({"final_val_accuracy": val_metrics["accuracy"]})
 
 print("\nComparison (final val accuracy):")
 for backbone, metrics in results.items():

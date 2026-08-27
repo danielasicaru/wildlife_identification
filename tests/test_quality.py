@@ -9,6 +9,7 @@ from src.data.quality import (
     is_corrupted,
     is_effectively_grayscale,
     is_opencv_readable,
+    is_valid_image,
 )
 
 
@@ -121,3 +122,26 @@ def test_is_opencv_readable_true_for_valid_image(tmp_path):
     _checkerboard(path)
 
     assert is_opencv_readable(path) is True
+
+
+def test_is_valid_image_true_for_valid_image(tmp_path):
+    path = tmp_path / "valid.jpg"
+    _checkerboard(path)
+
+    assert is_valid_image(path) is True
+
+
+def test_is_valid_image_false_for_corrupted_file(tmp_path):
+    path = tmp_path / "broken.jpg"
+    path.write_bytes(b"not a real jpeg file")
+
+    assert is_valid_image(path) is False
+
+
+def test_is_valid_image_false_when_opencv_cannot_decode_despite_passing_pil(tmp_path, monkeypatch):
+    path = tmp_path / "undecodable.jpg"
+    _checkerboard(path)
+
+    monkeypatch.setattr(quality.cv2, "imread", lambda *args, **kwargs: None)
+
+    assert is_valid_image(path) is False

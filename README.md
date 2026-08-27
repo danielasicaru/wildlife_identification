@@ -177,7 +177,7 @@ loss/loop correctness.
   which crop is which species). Split 416/90/88 (train/val/test), grouped so the 61 near-duplicate
   source-image pairs found during quality checks never land in different splits.
 - **First 3-backbone comparison run** (5 epochs, ~500 training crops, class-weighted loss):
-  ResNet50 20.0%, EfficientNet-B0 20.0%, ViT-B/16 42.2% final validation accuracy. ViT-B/16's lead
+  ResNet50 18.9%, EfficientNet-B0 25.6%, ViT-B/16 47.8% final validation accuracy. ViT-B/16's lead
   is a real, reproducible result of this specific run (seed-locked, logged to MLflow) — not a
   general claim about which architecture is "best" at this sample size. With single-digit
   per-species sample counts for several classes, some species appear in the training split only,

@@ -3,6 +3,8 @@ from collections.abc import Iterable
 
 import pandas as pd
 
+from src.data.loader import merge_categories
+
 
 def class_distribution(
     annotations: pd.DataFrame,
@@ -13,7 +15,7 @@ def class_distribution(
 
     `exclude` names (e.g. "empty", "car") are dropped before counting, since they are not species.
     """
-    merged = annotations.merge(categories, left_on="category_id", right_on="id", suffixes=("", "_cat"))
+    merged = merge_categories(annotations, categories)
     merged = merged[~merged["name"].isin(set(exclude))]
 
     counts = merged.groupby("name").size().to_frame("count").sort_values("count", ascending=False)
@@ -30,7 +32,7 @@ def per_site_distribution(
     exclude: Iterable[str] = (),
 ) -> pd.DataFrame:
     """Species counts per camera location, as a location x species pivot table."""
-    merged = annotations.merge(categories, left_on="category_id", right_on="id", suffixes=("", "_cat"))
+    merged = merge_categories(annotations, categories)
     merged = merged[~merged["name"].isin(set(exclude))]
     merged = merged.merge(images[["id", "location"]], left_on="image_id", right_on="id", suffixes=("", "_img"))
 

@@ -10,7 +10,7 @@ Corrupted: 0/633
 
 Laplacian variance: min=75.4, max=2513.3, median=331.6
 
-Flagged as blur candidates (bottom 10%, threshold=255.9): 64/633
+Flagged as blur candidates (bottom 10%, threshold=256.0): 64/633
 
 ## Color channel / day-night proxy validation
 

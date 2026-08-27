@@ -18,3 +18,8 @@ def load_annotations(json_path: str | Path) -> tuple[pd.DataFrame, pd.DataFrame,
     categories = pd.DataFrame(data["categories"])[["id", "name"]]
 
     return images, annotations, categories
+
+
+def merge_categories(annotations: pd.DataFrame, categories: pd.DataFrame) -> pd.DataFrame:
+    """Join annotations to their category name via category_id, adding a "name" column."""
+    return annotations.merge(categories, left_on="category_id", right_on="id", suffixes=("", "_cat"))

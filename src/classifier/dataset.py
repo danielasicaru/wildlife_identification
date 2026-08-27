@@ -24,7 +24,15 @@ class CropDataset(Dataset):
         self.species_to_index = species_to_index
         self.is_train = is_train
         self.minority_species = minority_species or set()
-        self._val_transform = build_val_transform()
+
+        # Only two distinct transform pipelines are ever needed (minority/majority, or the single
+        # val pipeline) -- build them once here rather than reconstructing a full v2.Compose graph
+        # on every __getitem__ call.
+        if is_train:
+            self._minority_transform = build_train_transform(is_minority=True)
+            self._majority_transform = build_train_transform(is_minority=False)
+        else:
+            self._val_transform = build_val_transform()
 
     def __len__(self) -> int:
         return len(self.df)
@@ -34,7 +42,7 @@ class CropDataset(Dataset):
         image = Image.open(self.crops_dir / row["crop_file"]).convert("RGB")
 
         if self.is_train:
-            transform = build_train_transform(is_minority=row["species"] in self.minority_species)
+            transform = self._minority_transform if row["species"] in self.minority_species else self._majority_transform
         else:
             transform = self._val_transform
 
