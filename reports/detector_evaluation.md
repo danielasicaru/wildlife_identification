@@ -6,13 +6,17 @@
 
 ## Missed-detection analysis by animal size (fraction of frame)
 
+Per-box, IoU-matched (IoU >= 0.5) -- whether this specific ground-truth box was detected, not just whether the image got any detection at all.
+
 | size_bucket    |   mean |   count |
 |:---------------|-------:|--------:|
-| small (<2%)    |  0.961 |     153 |
+| small (<2%)    |  0.882 |     153 |
 | medium (2-10%) |  1     |     156 |
 | large (>10%)   |  0.816 |      49 |
 
 ## Missed-detection analysis by day/night (pixel-based)
+
+Image-level: whether the image got at least one detection at all, not IoU-matched per box (day/night is inherently an image-level property, unlike animal size below).
 
 | day_night   |   mean |   count |
 |:------------|-------:|--------:|

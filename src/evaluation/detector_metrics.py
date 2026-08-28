@@ -60,3 +60,29 @@ def average_precision(
         prev_recall = recall
 
     return ap
+
+
+def per_box_detected(
+    detections: list[dict],
+    ground_truth: dict[str, list[tuple[int, int, int, int]]],
+    iou_threshold: float = 0.5,
+) -> dict[str, list[bool]]:
+    """For each image, whether each of its ground-truth boxes was matched by IoU to at least one
+    detection in that image. Returns image_id -> list of booleans, in the same order as
+    ground_truth[image_id] -- used for per-box breakdowns (e.g. by animal size) where an
+    image-level "did anything get detected" flag would wrongly credit every box in a
+    multi-animal image as "detected" even if only one of them actually was.
+    """
+    detections_by_image: dict[str, list[dict]] = {}
+    for detection in detections:
+        detections_by_image.setdefault(detection["image_id"], []).append(detection)
+
+    result: dict[str, list[bool]] = {}
+    for image_id, gt_boxes in ground_truth.items():
+        image_detections = detections_by_image.get(image_id, [])
+        result[image_id] = [
+            any(iou(detection["bbox"], gt_box) >= iou_threshold for detection in image_detections)
+            for gt_box in gt_boxes
+        ]
+
+    return result

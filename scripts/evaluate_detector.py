@@ -8,8 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 
-from src.data.characterize import bbox_area_ratio
-from src.evaluation.detector_metrics import average_precision
+from src.evaluation.detector_metrics import average_precision, per_box_detected
 from src.evaluation.segmentation import day_night_label
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,19 +48,27 @@ detections = [
 ]
 
 ap = average_precision(detections, ground_truth, iou_threshold=0.5)
+detected_files = {d["image_id"] for d in detections}  # image-level, used for the day/night breakdown below
 
 # --- Missed-detection analysis by bbox size ---
-ratios = bbox_area_ratio(bbox_annotations, bbox_images)
-ratios["file_name"] = ratios["image_id"].map(image_id_to_file)
-# Scoped to the processed sample for the same reason as ground_truth above -- otherwise every
-# ground-truth box outside the 633-image sample counts as "missed" for no real reason.
-ratios = ratios[ratios["file_name"].isin(processed_files)]
-detected_files = {d["image_id"] for d in detections}
+# Per-box IoU-matched status, not "did this image get any detection at all" -- an image-level
+# flag would wrongly credit every box in a multi-animal image as "detected" even if only one of
+# them actually was matched, which would understate the real miss rate.
+image_dims = bbox_images.set_index("file_name")[["height", "width"]].to_dict("index")
+box_matches = per_box_detected(detections, ground_truth, iou_threshold=0.5)
 
+size_rows = []
+for file_name, boxes in ground_truth.items():
+    dims = image_dims[file_name]
+    matches = box_matches[file_name]
+    for bbox, detected in zip(boxes, matches):
+        area_ratio = (bbox[2] * bbox[3]) / (dims["height"] * dims["width"])
+        size_rows.append({"file_name": file_name, "area_ratio": area_ratio, "detected": detected})
+
+ratios = pd.DataFrame(size_rows)
 ratios["size_bucket"] = pd.cut(
     ratios["area_ratio"], bins=[0, 0.02, 0.1, 1.0], labels=["small (<2%)", "medium (2-10%)", "large (>10%)"]
 )
-ratios["detected"] = ratios["file_name"].isin(detected_files)
 size_recall = ratios.groupby("size_bucket", observed=True)["detected"].agg(["mean", "count"])
 
 # --- Missed-detection analysis by day/night ---
@@ -88,12 +95,18 @@ lines = [
     "",
     "## Missed-detection analysis by animal size (fraction of frame)",
     "",
+    "Per-box, IoU-matched (IoU >= 0.5) -- whether this specific ground-truth box was detected, "
+    "not just whether the image got any detection at all.",
+    "",
     size_recall.round(3).to_markdown(),
     "",
 ]
 if day_night_recall is not None:
     lines += [
         "## Missed-detection analysis by day/night (pixel-based)",
+        "",
+        "Image-level: whether the image got at least one detection at all, not IoU-matched per "
+        "box (day/night is inherently an image-level property, unlike animal size below).",
         "",
         day_night_recall.round(3).to_markdown(),
         "",

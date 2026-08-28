@@ -239,10 +239,11 @@ produced it.
 - **Detector: 0.535 Average Precision** (IoU >= 0.5) — meaningfully lower than the localization
   stage's 92.5% raw recall, because AP also penalizes false positives and integrates over the full
   precision-recall curve, including lower-confidence detections that recall-alone doesn't
-  penalize. A genuinely counter-intuitive finding: **large animals (>10% of frame) had the lowest
-  detection rate (81.6%)**, not small/distant ones (96.1% small, 100% medium) — worth a closer
-  qualitative look before assuming "small animals are the hard case," since this run's data says
-  otherwise. Night detection rate (99.5%) also slightly exceeds day (89.3%).
+  penalize. Per-box, IoU-matched detection rate by animal size: **large animals (>10% of frame)
+  had the lowest detection rate (81.6%)**, ahead of small (88.2%), with medium animals (2-10%)
+  detected 100% of the time — worth a closer qualitative look before assuming "small animals are
+  the hard case," since this run's data says otherwise. Night detection rate (99.5%, image-level)
+  also slightly exceeds day (89.3%).
 - **Occlusion segmentation is intentionally not included** in either evaluation: only 20 images
   have manual occlusion tags (from the dataset characterization stage's tagging tool), against an
   88-crop test set drawn from different source images — expected overlap is near zero, so a
