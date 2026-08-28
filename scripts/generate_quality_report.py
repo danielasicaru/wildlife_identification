@@ -21,9 +21,10 @@ REPORT_PATH = ROOT / "reports" / "quality.md"
 # perceptual-hash comparison from scratch.
 NEAR_DUPLICATES_PATH = ROOT / "data" / "near_duplicates.json"
 
-# Below this Laplacian-variance score, an image is flagged as a blur candidate. Calibrated as the
-# BLUR_PERCENTILE of this sample's own score distribution, not an arbitrary fixed number, since
-# "sharp" varies a lot by camera/lighting conditions across a real dataset.
+# Below this Laplacian-variance score, an image is flagged as a blur candidate. Calibrated as a
+# percentile (see configs/quality_report.yaml) of this sample's own score distribution, not an
+# arbitrary fixed number, since "sharp" varies a lot by camera/lighting conditions across a real
+# dataset.
 config = load_config(ROOT / "configs" / "quality_report.yaml")
 BLUR_PERCENTILE = config["blur_percentile"]
 

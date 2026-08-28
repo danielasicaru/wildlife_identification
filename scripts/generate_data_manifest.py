@@ -9,8 +9,6 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 MANIFEST_PATH = ROOT / "reports" / "data_manifest.json"
