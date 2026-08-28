@@ -1,0 +1,3 @@
+model_name: MDV5A
+min_confidence: 0.2  # MegaDetector's own documented "typical" threshold for v5a
+box_expansion_fraction: 0.1
