@@ -57,3 +57,33 @@ def evaluate(model: nn.Module, loader: DataLoader, criterion, device: str) -> di
             total += labels.size(0)
 
     return {"loss": total_loss / n_batches, "accuracy": correct / total}
+
+
+class EarlyStopping:
+    """Stops training when a monitored score hasn't improved for `patience` consecutive epochs.
+
+    mode="min" for a loss (lower is better), mode="max" for a metric like accuracy (higher is
+    better). "Improved" requires strict improvement -- a repeated score counts as no improvement,
+    so a completely flat run still stops after `patience` epochs rather than continuing forever.
+    """
+
+    def __init__(self, patience: int, mode: str = "min"):
+        self.patience = patience
+        self.mode = mode
+        self.best_score: float | None = None
+        self.epochs_without_improvement = 0
+        self.should_stop = False
+
+    def step(self, score: float) -> bool:
+        improved = self.best_score is None or (
+            score < self.best_score if self.mode == "min" else score > self.best_score
+        )
+
+        if improved:
+            self.best_score = score
+            self.epochs_without_improvement = 0
+        else:
+            self.epochs_without_improvement += 1
+
+        self.should_stop = self.epochs_without_improvement >= self.patience
+        return self.should_stop

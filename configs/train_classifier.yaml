@@ -1,8 +1,9 @@
 seed: 42
-epochs: 5
+epochs: 1000
 batch_size: 16
 learning_rate: 0.0001
 min_samples_per_species: 2  # need at least 2 to appear in more than one split
+early_stopping_patience: 10  # stop if val_loss hasn't improved for this many consecutive epochs
 backbones:
   - resnet50
   - efficientnet_b0

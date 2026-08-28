@@ -17,7 +17,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from src.classifier.dataset import CropDataset
-from src.classifier.engine import compute_class_weights, evaluate, train_one_epoch
+from src.classifier.engine import EarlyStopping, compute_class_weights, evaluate, train_one_epoch
 from src.classifier.labeling import build_crop_dataframe
 from src.classifier.models import build_model
 from src.classifier.split import group_images_by_near_duplicates, split_groups
@@ -44,6 +44,7 @@ EPOCHS = config["epochs"]
 BATCH_SIZE = config["batch_size"]
 LEARNING_RATE = config["learning_rate"]
 MIN_SAMPLES_PER_SPECIES = config["min_samples_per_species"]
+EARLY_STOPPING_PATIENCE = config["early_stopping_patience"]
 BACKBONES = tuple(config["backbones"])
 
 for path in (DETECTIONS_PATH, ANNOTATIONS_PATH, BBOX_PATH):
@@ -169,10 +170,13 @@ for backbone in BACKBONES:
 
         model = build_model(backbone, num_classes=len(species_to_index)).to(device)
         optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+        early_stopping = EarlyStopping(patience=EARLY_STOPPING_PATIENCE, mode="min")
 
+        epochs_trained = 0
         for epoch in range(EPOCHS):
             train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
             val_metrics = evaluate(model, val_loader, criterion, device)
+            epochs_trained = epoch + 1
             mlflow.log_metrics(
                 {"train_loss": train_loss, "val_loss": val_metrics["loss"], "val_accuracy": val_metrics["accuracy"]},
                 step=epoch,
@@ -182,10 +186,19 @@ for backbone in BACKBONES:
                 f"val_loss={val_metrics['loss']:.4f} val_acc={val_metrics['accuracy']:.3f}"
             )
 
+            if early_stopping.step(val_metrics["loss"]):
+                print(
+                    f"[{backbone}] stopping early after {epochs_trained} epochs -- val_loss hasn't "
+                    f"improved for {EARLY_STOPPING_PATIENCE} consecutive epochs "
+                    f"(best val_loss={early_stopping.best_score:.4f})"
+                )
+                break
+
         # val_metrics already reflects this exact model/val_loader from the last epoch above --
         # no need to evaluate a second time.
         results[backbone] = val_metrics
         mlflow.log_metrics({"final_val_accuracy": val_metrics["accuracy"]})
+        mlflow.log_params({"epochs_trained": epochs_trained, "stopped_early": early_stopping.should_stop})
 
         CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
         checkpoint_path = CHECKPOINT_DIR / f"{backbone}.pt"

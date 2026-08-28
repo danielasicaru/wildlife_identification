@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from src.classifier.engine import compute_class_weights, evaluate, train_one_epoch
+from src.classifier.engine import EarlyStopping, compute_class_weights, evaluate, train_one_epoch
 
 
 def test_compute_class_weights_inverse_frequency_ordered_by_index():
@@ -54,3 +54,43 @@ def test_evaluate_returns_loss_and_accuracy():
     assert "loss" in result
     assert "accuracy" in result
     assert 0.0 <= result["accuracy"] <= 1.0
+
+
+def test_early_stopping_does_not_stop_while_score_keeps_improving():
+    stopper = EarlyStopping(patience=3, mode="min")
+
+    for loss in [1.0, 0.8, 0.6, 0.4]:
+        should_stop = stopper.step(loss)
+        assert should_stop is False
+
+
+def test_early_stopping_stops_after_patience_epochs_without_improvement():
+    stopper = EarlyStopping(patience=3, mode="min")
+
+    stopper.step(1.0)  # best so far
+    assert stopper.step(1.1) is False  # 1 epoch without improvement
+    assert stopper.step(1.2) is False  # 2 epochs without improvement
+    assert stopper.step(0.9) is False  # improved again, counter resets
+    assert stopper.step(1.0) is False  # 1
+    assert stopper.step(1.0) is False  # 2
+    assert stopper.step(1.0) is True  # 3 -- patience exhausted
+
+
+def test_early_stopping_max_mode_for_accuracy():
+    stopper = EarlyStopping(patience=2, mode="max")
+
+    stopper.step(0.5)  # best so far
+    assert stopper.step(0.4) is False  # 1 epoch without improvement
+    assert stopper.step(0.6) is False  # improved, counter resets
+    assert stopper.step(0.6) is False  # not strictly better, 1
+    assert stopper.step(0.6) is True  # 2 -- patience exhausted
+
+
+def test_early_stopping_tracks_best_score():
+    stopper = EarlyStopping(patience=5, mode="min")
+
+    stopper.step(1.0)
+    stopper.step(0.5)
+    stopper.step(0.8)
+
+    assert stopper.best_score == pytest.approx(0.5)
