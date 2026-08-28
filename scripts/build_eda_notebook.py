@@ -402,6 +402,26 @@ nb["cells"] = [
         "    plt.tight_layout()\n"
         "    plt.show()"
     ),
+    nbf.v4.new_markdown_cell(
+        "## Evaluation\n\n"
+        "Classifier evaluation on the held-out test split (`scripts/evaluate_classifier.py`) and "
+        "detector average precision (`scripts/evaluate_detector.py`)."
+    ),
+    nbf.v4.new_code_cell(
+        "confusion_matrix_path = Path.cwd().parent / \"reports\" / \"confusion_matrix.png\"\n"
+        "if confusion_matrix_path.exists():\n"
+        "    display(PILImage.open(confusion_matrix_path))\n"
+        "else:\n"
+        "    print(\"Run scripts/evaluate_classifier.py first.\")"
+    ),
+    nbf.v4.new_markdown_cell("Per-class metrics and detector AP (raw report text):"),
+    nbf.v4.new_code_cell(
+        "for report_name in [\"classifier_evaluation.md\", \"detector_evaluation.md\"]:\n"
+        "    report_path = Path.cwd().parent / \"reports\" / report_name\n"
+        "    if report_path.exists():\n"
+        "        print(report_path.read_text(encoding=\"utf-8\")[:1500])\n"
+        "        print(\"...\\n\")"
+    ),
 ]
 
 NOTEBOOK_PATH.parent.mkdir(parents=True, exist_ok=True)
