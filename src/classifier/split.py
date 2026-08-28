@@ -1,5 +1,6 @@
-"""Near-duplicate-aware grouped train/val/test split. See Task 2 design note in the plan for why
-this doesn't attempt hard per-class stratification."""
+"""Near-duplicate-aware grouped train/val/test split. Doesn't attempt hard per-class
+stratification -- several species have single-digit sample counts dataset-wide, which would
+either crash a stratified split or force dropping already-scarce species."""
 import random
 
 import pandas as pd

@@ -67,16 +67,19 @@ class EarlyStopping:
     so a completely flat run still stops after `patience` epochs rather than continuing forever.
     """
 
-    def __init__(self, patience: int, mode: str = "min"):
+    def __init__(self, patience: int, mode: str = "min", min_delta: float = 0.0):
         self.patience = patience
         self.mode = mode
+        self.min_delta = min_delta
         self.best_score: float | None = None
         self.epochs_without_improvement = 0
         self.should_stop = False
 
     def step(self, score: float) -> bool:
         improved = self.best_score is None or (
-            score < self.best_score if self.mode == "min" else score > self.best_score
+            score < self.best_score - self.min_delta
+            if self.mode == "min"
+            else score > self.best_score + self.min_delta
         )
 
         if improved:

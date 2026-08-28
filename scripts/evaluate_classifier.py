@@ -65,10 +65,8 @@ species_counts = crop_df["species"].value_counts()
 crop_df = crop_df[crop_df["species"].map(species_counts) >= MIN_SAMPLES_PER_SPECIES].reset_index(drop=True)
 
 if not NEAR_DUPLICATES_PATH.exists():
-    # Deliberately not falling back to recomputing here (unlike train_classifier.py): this script
-    # must reconstruct the *exact* split a checkpoint was trained on. If the file were missing and
-    # we recomputed near-duplicate pairs fresh, a later re-run of generate_quality_report.py in
-    # between could silently produce a different split than what the checkpoint actually saw.
+    # No fallback recompute here (unlike train_classifier.py) -- this script must reconstruct the
+    # exact split a checkpoint was trained on, and a fresh recomputation could diverge from it.
     raise SystemExit(
         f"{NEAR_DUPLICATES_PATH} not found -- required to reconstruct the exact split the "
         "checkpoint was trained on. Run scripts/generate_quality_report.py first."

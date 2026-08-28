@@ -94,3 +94,20 @@ def test_early_stopping_tracks_best_score():
     stopper.step(0.8)
 
     assert stopper.best_score == pytest.approx(0.5)
+
+
+def test_early_stopping_min_delta_ignores_negligible_improvement():
+    stopper = EarlyStopping(patience=2, mode="min", min_delta=0.01)
+
+    stopper.step(1.0)  # best so far
+    assert stopper.step(0.999) is False  # improvement smaller than min_delta -- doesn't count, 1
+    assert stopper.step(0.998) is True  # still below min_delta -- 2, patience exhausted
+
+
+def test_early_stopping_min_delta_still_resets_on_real_improvement():
+    stopper = EarlyStopping(patience=2, mode="min", min_delta=0.01)
+
+    stopper.step(1.0)
+    stopper.step(0.999)  # negligible, 1 epoch without improvement
+    assert stopper.step(0.9) is False  # real improvement (>= min_delta) -- resets counter
+    assert stopper.best_score == pytest.approx(0.9)

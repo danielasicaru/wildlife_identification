@@ -29,9 +29,8 @@ bbox_annotations = pd.DataFrame(bbox_data["annotations"])
 bbox_images = pd.DataFrame(bbox_data["images"])[["id", "file_name", "height", "width"]]
 image_id_to_file = bbox_images.set_index("id")["file_name"].to_dict()
 
-# Ground truth is scoped to the processed sample (detection_results), not the full ~63,025-image
-# bbox dataset -- otherwise the AP denominator counts ground-truth boxes for images the detector
-# never even saw, which would make AP look catastrophically low for no real reason.
+# Scoped to the processed sample, not the full ~63,025-image bbox dataset -- otherwise the AP
+# denominator counts ground truth for images the detector never saw.
 processed_files = {result["source_image"] for result in detection_results}
 
 ground_truth: dict[str, list] = {}
@@ -49,10 +48,8 @@ detections = [
 
 ap = average_precision(detections, ground_truth, iou_threshold=0.5)
 
-# Per-ground-truth-box IoU-matched status, computed once and reused below. A raw "did this image
-# get any detection at all" flag would wrongly credit an image as having found its animal even
-# when the only detection there is a false positive that doesn't actually match any ground-truth
-# box -- both the size and day/night breakdowns need the real per-box signal, not just presence.
+# Per-box IoU-matched status, reused below by both breakdowns -- a raw "did this image get any
+# detection" flag would wrongly credit a false-positive-only image as a real detection.
 box_matches = per_box_detected(detections, ground_truth, iou_threshold=0.5)
 
 # --- Missed-detection analysis by bbox size (per-box) ---
@@ -73,9 +70,6 @@ ratios["size_bucket"] = pd.cut(
 size_recall = ratios.groupby("size_bucket", observed=True)["detected"].agg(["mean", "count"])
 
 # --- Missed-detection analysis by day/night ---
-# "detected" here means at least one of the image's ground-truth boxes was actually IoU-matched
-# (any(box_matches[...])), not just that the image has some detection -- a false-positive-only
-# image would otherwise be wrongly counted as a successful detection.
 sample_files_with_gt = [f for f in ground_truth if (IMAGES_DIR / f).exists()]
 day_night_rows = [
     {

@@ -47,6 +47,9 @@ MIN_SAMPLES_PER_SPECIES = config["min_samples_per_species"]
 EARLY_STOPPING_PATIENCE = config["early_stopping_patience"]
 BACKBONES = tuple(config["backbones"])
 
+if EPOCHS < 1:
+    raise SystemExit(f"configs/train_classifier.yaml: epochs must be >= 1, got {EPOCHS}")
+
 for path in (DETECTIONS_PATH, ANNOTATIONS_PATH, BBOX_PATH):
     if not path.exists():
         raise SystemExit(f"{path} not found -- run the localization and download scripts first.")
@@ -54,12 +57,9 @@ for path in (DETECTIONS_PATH, ANNOTATIONS_PATH, BBOX_PATH):
 random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
-# cuDNN can pick different convolution algorithms across runs even with the seeds above locked;
-# these two flags narrow that source of nondeterminism (at some performance cost). They don't
-# guarantee full bitwise determinism on GPU by themselves -- some CUDA ops (e.g. certain
-# scatter/index-add reductions) remain nondeterministic regardless. Full determinism would need
-# torch.use_deterministic_algorithms(True) plus CUBLAS_WORKSPACE_CONFIG, deliberately not enabled
-# here since it can raise on ops without a deterministic implementation.
+# Narrows (doesn't fully eliminate) GPU nondeterminism from cuDNN's algorithm selection; full
+# determinism would need torch.use_deterministic_algorithms(True), which can raise on ops with
+# no deterministic implementation.
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
@@ -108,10 +108,8 @@ crop_df["split"] = split_groups(crop_df, seed=SEED)
 
 train_df = crop_df[crop_df["split"] == "train"].reset_index(drop=True)
 
-# The split is group-level (near-duplicate-aware), not per-class stratified -- a species can end
-# up entirely outside train_df. A class the model never trains on can't be meaningfully predicted,
-# so such species are dropped from val/test evaluation and from the model's output classes
-# entirely, rather than silently scoring the model on classes it was never shown.
+# The split is group-level, not per-class stratified, so a species can end up entirely outside
+# train_df -- drop it everywhere rather than scoring a class the model never saw.
 train_species = set(train_df["species"].unique())
 species_without_train_examples = set(crop_df["species"].unique()) - train_species
 if species_without_train_examples:
@@ -145,10 +143,8 @@ criterion = nn.CrossEntropyLoss(weight=class_weights)
 
 results = {}
 for backbone in BACKBONES:
-    # Rebuilt per backbone, reseeded to the same SEED each time, so every backbone trains against
-    # an identical batch order -- the backbone is the only thing that varies across iterations,
-    # matching the controlled-comparison intent (otherwise each backbone would continue drawing
-    # from wherever the previous backbone's epochs left the sampler's RNG state).
+    # Reseeded to SEED per backbone so each one sees an identical batch order -- backbone is the
+    # only thing that varies across iterations.
     sampler = WeightedRandomSampler(
         train_weights, num_samples=len(train_weights), replacement=True,
         generator=torch.Generator().manual_seed(SEED),
@@ -172,6 +168,9 @@ for backbone in BACKBONES:
         optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
         early_stopping = EarlyStopping(patience=EARLY_STOPPING_PATIENCE, mode="min")
 
+        best_state_dict = None
+        best_val_metrics = None
+        best_epoch = 0
         epochs_trained = 0
         for epoch in range(EPOCHS):
             train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
@@ -186,19 +185,29 @@ for backbone in BACKBONES:
                 f"val_loss={val_metrics['loss']:.4f} val_acc={val_metrics['accuracy']:.3f}"
             )
 
-            if early_stopping.step(val_metrics["loss"]):
+            should_stop = early_stopping.step(val_metrics["loss"])
+            if early_stopping.epochs_without_improvement == 0:
+                # New best -- keep its weights (on CPU, so we're not holding two copies of the
+                # model on GPU at once) so a later, worse epoch doesn't overwrite the checkpoint.
+                best_state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+                best_val_metrics = val_metrics
+                best_epoch = epochs_trained
+
+            if should_stop:
                 print(
                     f"[{backbone}] stopping early after {epochs_trained} epochs -- val_loss hasn't "
                     f"improved for {EARLY_STOPPING_PATIENCE} consecutive epochs "
-                    f"(best val_loss={early_stopping.best_score:.4f})"
+                    f"(best val_loss={early_stopping.best_score:.4f} at epoch {best_epoch})"
                 )
                 break
 
-        # val_metrics already reflects this exact model/val_loader from the last epoch above --
-        # no need to evaluate a second time.
-        results[backbone] = val_metrics
-        mlflow.log_metrics({"final_val_accuracy": val_metrics["accuracy"]})
-        mlflow.log_params({"epochs_trained": epochs_trained, "stopped_early": early_stopping.should_stop})
+        model.load_state_dict(best_state_dict)
+        results[backbone] = best_val_metrics
+        mlflow.log_metrics({"final_val_accuracy": best_val_metrics["accuracy"]})
+        mlflow.log_params({
+            "epochs_trained": epochs_trained, "stopped_early": early_stopping.should_stop,
+            "best_epoch": best_epoch,
+        })
 
         CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
         checkpoint_path = CHECKPOINT_DIR / f"{backbone}.pt"

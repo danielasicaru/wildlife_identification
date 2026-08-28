@@ -45,7 +45,7 @@ def build_train_transform(is_minority: bool) -> v2.Compose:
 
     crop = v2.RandomResizedCrop(MODEL_INPUT_SIZE, scale=(0.4, 1.0), ratio=(0.9, 1.1))
     if is_minority:
-        steps.append(crop)  # p=1.0 per spec: always applied, no wrapper needed
+        steps.append(crop)  # always applied for minority classes, no wrapper needed
     else:
         steps.append(v2.RandomApply([crop], p=0.8))
 
