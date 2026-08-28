@@ -27,10 +27,19 @@ training comparison functionally complete. Full evaluation and serving not yet s
 
 ## Setup
 
+For an exact reproduction of the environment this was built and run in:
+
+```bash
+conda env create -f environment.yml
+conda activate wildlife-id
+```
+
+Or set it up manually:
+
 ```bash
 conda create -n wildlife-id python=3.11
 conda activate wildlife-id
-pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-headless imagehash numpy pillow
+pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-headless imagehash numpy pillow pyyaml
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128  # or the CPU index if no GPU
 pip install --no-deps megadetector clipboard dill fastquadtree humanfriendly jsonpickle mkl \
     scikit-learn thop ultralytics-yolov5 seaborn  # --no-deps avoids a pip conflict between
@@ -49,6 +58,13 @@ Run localization (downloads the ~280MB MegaDetector v5a weights on first run):
 ```bash
 python scripts/run_localization.py
 python scripts/generate_localization_report.py
+```
+
+Generate a checksummed manifest of the exact data files in use (optional, but referenced by
+`train_classifier.py` if present):
+
+```bash
+python scripts/generate_data_manifest.py
 ```
 
 Train and compare classifier backbones (MLflow tracking, local file store):
@@ -177,13 +193,39 @@ loss/loop correctness.
   which crop is which species). Split 416/90/88 (train/val/test), grouped so the 61 near-duplicate
   source-image pairs found during quality checks never land in different splits.
 - **First 3-backbone comparison run** (5 epochs, ~500 training crops, class-weighted loss):
-  ResNet50 18.9%, EfficientNet-B0 25.6%, ViT-B/16 47.8% final validation accuracy. ViT-B/16's lead
-  is a real, reproducible result of this specific run (seed-locked, logged to MLflow) — not a
-  general claim about which architecture is "best" at this sample size. With single-digit
+  ResNet50 14.4%, EfficientNet-B0 17.8%, ViT-B/16 38.9% final validation accuracy. ViT-B/16's lead
+  is a real result of this specific run, now fully seed-locked (see "Reproducibility" below) — not
+  a general claim about which architecture is "best" at this sample size. With single-digit
   per-species sample counts for several classes, some species appear in the training split only,
   and these numbers should be read as a pipeline-correctness sanity check (data flows correctly
   from crops through augmentation, model, class-weighted loss, to MLflow), not as a real
   performance benchmark. A full-dataset run is future work.
+
+## Reproducibility
+
+- **Environment**: `environment.yml` (committed) captures the exact conda + pip environment via
+  `conda env export`, since most packages here were pip-installed (some with `--no-deps`) rather
+  than conda-installed — `conda env create -f environment.yml` reproduces it exactly.
+- **Seeds**: `train_classifier.py` locks `random`, `numpy`, and `torch`'s global seeds, sets
+  `torch.backends.cudnn.deterministic = True` / `cudnn.benchmark = False` (cuDNN can otherwise pick
+  different convolution algorithms run to run even with the seeds above locked), and passes an
+  explicit seeded `torch.Generator` to `WeightedRandomSampler` rather than relying on global RNG
+  state ordering.
+- **Config, not inline settings**: per-script settings (learning rate, epochs, thresholds, sample
+  sizes, seeds) live in `configs/*.yaml`, loaded via `src/utils/config.py`, not hardcoded constants
+  — a run's exact settings are a diffable, versioned file, not buried in code.
+- **Data versioning**: `scripts/generate_data_manifest.py` writes `reports/data_manifest.json`,
+  checksumming (SHA-256) the annotation files individually and hashing each data directory
+  (images, crops) as a combined digest — `data/` itself is gitignored (too large to commit), so
+  this manifest is what lets a later reader verify "this run used exactly this data" without
+  storing the data itself in git.
+- **Automatic experiment metadata**: every `train_classifier.py` run logs its config file and (if
+  present) the data manifest as MLflow artifacts, plus Python/PyTorch/CUDA versions as params,
+  alongside the metrics it already logged — no manual bookkeeping needed to know what produced a
+  given run's numbers later.
+- A checksummed manifest was chosen over a dedicated tool like DVC, and plain YAML was chosen over
+  a config framework like Hydra, to keep the reproducibility layer proportional to this project's
+  scale — both are documented tradeoffs, not oversights.
 
 ## Tradeoffs
 
