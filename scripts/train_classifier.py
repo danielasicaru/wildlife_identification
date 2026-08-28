@@ -35,6 +35,7 @@ IMAGES_DIR = ROOT / "data" / "raw" / "images"
 NEAR_DUPLICATES_PATH = ROOT / "data" / "near_duplicates.json"
 DATA_MANIFEST_PATH = ROOT / "reports" / "data_manifest.json"
 CONFIG_PATH = ROOT / "configs" / "train_classifier.yaml"
+CHECKPOINT_DIR = ROOT / "data" / "checkpoints"
 NON_SPECIES = {"empty", "car"}
 
 config = load_config(CONFIG_PATH)
@@ -185,6 +186,16 @@ for backbone in BACKBONES:
         # no need to evaluate a second time.
         results[backbone] = val_metrics
         mlflow.log_metrics({"final_val_accuracy": val_metrics["accuracy"]})
+
+        CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+        checkpoint_path = CHECKPOINT_DIR / f"{backbone}.pt"
+        torch.save(model.state_dict(), checkpoint_path)
+        mlflow.log_artifact(str(checkpoint_path))
+
+        species_mapping_path = CHECKPOINT_DIR / "species_to_index.json"
+        with open(species_mapping_path, "w", encoding="utf-8") as f:
+            json.dump(species_to_index, f, indent=2)
+        mlflow.log_artifact(str(species_mapping_path))
 
 print("\nComparison (final val accuracy):")
 for backbone, metrics in results.items():
