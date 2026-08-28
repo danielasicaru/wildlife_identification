@@ -10,20 +10,25 @@ from PIL import Image
 
 from src.localization.crop import crop_to_bbox, expand_bbox
 from src.localization.detector import bbox_to_absolute, filter_animal_detections, load_detector, run_detection
+from src.utils.config import load_config
 
-IMAGES_DIR = Path(__file__).resolve().parents[1] / "data" / "raw" / "images"
-OUTPUT_DIR = Path(__file__).resolve().parents[1] / "data" / "localization"
+ROOT = Path(__file__).resolve().parents[1]
+IMAGES_DIR = ROOT / "data" / "raw" / "images"
+OUTPUT_DIR = ROOT / "data" / "localization"
 CROPS_DIR = OUTPUT_DIR / "crops"
 DETECTIONS_PATH = OUTPUT_DIR / "detections.json"
-BOX_EXPANSION_FRACTION = 0.1
-MIN_CONFIDENCE = 0.2
+
+config = load_config(ROOT / "configs" / "run_localization.yaml")
+MODEL_NAME = config["model_name"]
+MIN_CONFIDENCE = config["min_confidence"]
+BOX_EXPANSION_FRACTION = config["box_expansion_fraction"]
 
 if not IMAGES_DIR.exists():
     raise SystemExit(f"No sample images found at {IMAGES_DIR} -- run scripts/download_sample_images.py first.")
 
 CROPS_DIR.mkdir(parents=True, exist_ok=True)
 
-detector = load_detector()
+detector = load_detector(MODEL_NAME)
 image_paths = sorted(IMAGES_DIR.glob("*.jpg"))
 all_results = []
 crop_count = 0

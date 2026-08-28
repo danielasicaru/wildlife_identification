@@ -11,18 +11,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.data.characterize import metadata_survey
 from src.data.loader import load_annotations
 from src.data.quality import blur_score, find_near_duplicates, is_effectively_grayscale, is_valid_image
+from src.utils.config import load_config
 
-ANNOTATIONS_PATH = Path(__file__).resolve().parents[1] / "data" / "raw" / "caltech_images_20210113.json"
-IMAGES_DIR = Path(__file__).resolve().parents[1] / "data" / "raw" / "images"
-REPORT_PATH = Path(__file__).resolve().parents[1] / "reports" / "quality.md"
+ROOT = Path(__file__).resolve().parents[1]
+ANNOTATIONS_PATH = ROOT / "data" / "raw" / "caltech_images_20210113.json"
+IMAGES_DIR = ROOT / "data" / "raw" / "images"
+REPORT_PATH = ROOT / "reports" / "quality.md"
 # Persisted so other scripts (e.g. train_classifier.py) don't have to recompute this O(n^2)
 # perceptual-hash comparison from scratch.
-NEAR_DUPLICATES_PATH = Path(__file__).resolve().parents[1] / "data" / "near_duplicates.json"
+NEAR_DUPLICATES_PATH = ROOT / "data" / "near_duplicates.json"
 
 # Below this Laplacian-variance score, an image is flagged as a blur candidate. Calibrated as the
-# 10th percentile of this sample's own score distribution, not an arbitrary fixed number, since
+# BLUR_PERCENTILE of this sample's own score distribution, not an arbitrary fixed number, since
 # "sharp" varies a lot by camera/lighting conditions across a real dataset.
-BLUR_PERCENTILE = 10
+config = load_config(ROOT / "configs" / "quality_report.yaml")
+BLUR_PERCENTILE = config["blur_percentile"]
 
 
 def main() -> None:

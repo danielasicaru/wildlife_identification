@@ -13,11 +13,16 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.data.loader import load_annotations, merge_categories
+from src.utils.config import load_config
 
+ROOT = Path(__file__).resolve().parents[1]
 IMAGE_BASE_URL = "https://lilawildlife.blob.core.windows.net/lila-wildlife/caltech-unzipped/cct_images"
-ANNOTATIONS_PATH = Path(__file__).resolve().parents[1] / "data" / "raw" / "caltech_images_20210113.json"
-IMAGES_DIR = Path(__file__).resolve().parents[1] / "data" / "raw" / "images"
-PER_CLASS_SAMPLE_SIZE = 20
+ANNOTATIONS_PATH = ROOT / "data" / "raw" / "caltech_images_20210113.json"
+IMAGES_DIR = ROOT / "data" / "raw" / "images"
+
+config = load_config(ROOT / "configs" / "download_sample_images.yaml")
+PER_CLASS_SAMPLE_SIZE = config["per_class_sample_size"]
+SEED = config["seed"]
 
 
 def main() -> None:
@@ -31,7 +36,7 @@ def main() -> None:
 
     sample_parts = []
     for _, group in merged.groupby("name"):
-        sample_parts.append(group.sample(n=min(PER_CLASS_SAMPLE_SIZE, len(group)), random_state=42))
+        sample_parts.append(group.sample(n=min(PER_CLASS_SAMPLE_SIZE, len(group)), random_state=SEED))
     sample = pd.concat(sample_parts, ignore_index=True)
 
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
