@@ -22,8 +22,8 @@ benchmark for cross-site generalization.
 
 **Stack:** Python, PyTorch, MegaDetector, FastAPI, MLflow, Docker.
 
-**Status:** dataset characterization, augmentation pipeline, localization, and a first classifier
-training comparison functionally complete. Full evaluation and serving not yet started.
+**Status:** dataset characterization, augmentation pipeline, localization, classifier training, and
+evaluation functionally complete. Serving not yet started.
 
 ## Setup
 
@@ -39,7 +39,7 @@ Or set it up manually:
 ```bash
 conda create -n wildlife-id python=3.11
 conda activate wildlife-id
-pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-headless imagehash numpy pillow pyyaml
+pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-headless imagehash numpy pillow pyyaml tabulate
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128  # or the CPU index if no GPU
 pip install --no-deps megadetector clipboard dill fastquadtree humanfriendly jsonpickle mkl \
     scikit-learn thop ultralytics-yolov5 seaborn  # --no-deps avoids a pip conflict between
@@ -71,6 +71,13 @@ Train and compare classifier backbones (MLflow tracking, local file store):
 
 ```bash
 python scripts/train_classifier.py
+```
+
+Evaluate the best trained model on the held-out test split, and the detector's average precision:
+
+```bash
+python scripts/evaluate_classifier.py
+python scripts/evaluate_detector.py
 ```
 
 Run tests:
@@ -200,6 +207,46 @@ loss/loop correctness.
   and these numbers should be read as a pipeline-correctness sanity check (data flows correctly
   from crops through augmentation, model, class-weighted loss, to MLflow), not as a real
   performance benchmark. A full-dataset run is future work.
+
+## Evaluation
+
+`src/evaluation/` provides per-class classification metrics (`classifier_metrics.py`, thin
+`scikit-learn` wrappers), day/night and per-site error segmentation (`segmentation.py`, pixel-based
+day/night, not the unreliable hour proxy), and single-class detector average precision
+(`detector_metrics.py`, a from-scratch precision-recall-integrated AP calculation).
+`scripts/train_classifier.py` now persists each backbone's model weights and species-index mapping
+as MLflow artifacts, so a trained model can be reloaded independently of the training run that
+produced it.
+
+- `scripts/evaluate_classifier.py` — loads the best backbone from the most recent training run,
+  evaluates it on the 88-crop held-out test split: per-class precision/recall/F1, a confusion
+  matrix (`reports/confusion_matrix.png`), day/night and per-site error breakdowns, and a
+  qualitative list of every misclassified crop (`reports/classifier_evaluation.md`)
+- `scripts/evaluate_detector.py` — average precision (IoU >= 0.5) against ground-truth boxes,
+  plus missed-detection analysis by animal size and day/night (`reports/detector_evaluation.md`)
+- [notebooks/eda.ipynb](notebooks/eda.ipynb) — the confusion matrix and both reports' raw text
+
+### Key findings
+
+- **Classifier: 42.0% test accuracy** (ViT-B/16, the best backbone from the latest training
+  comparison), on 88 test crops across 19 species. Real per-class numbers vary widely by
+  support — `pig` (1 test example) hits 100% recall, several other single-digit-support classes
+  hit 0%, which is what per-class metrics genuinely look like at this sample size rather than a
+  bug. Errors cluster heavily toward over-predicting `fox` and `squirrel` (visible directly in the
+  confusion matrix), and night-time crops score noticeably worse than day (33.9% vs. 58.6%
+  accuracy) — a real, plausible signal (IR grayscale captures lose the coat-color cues several
+  species depend on) rather than a claim, given the small sample.
+- **Detector: 0.535 Average Precision** (IoU >= 0.5) — meaningfully lower than the localization
+  stage's 92.5% raw recall, because AP also penalizes false positives and integrates over the full
+  precision-recall curve, including lower-confidence detections that recall-alone doesn't
+  penalize. A genuinely counter-intuitive finding: **large animals (>10% of frame) had the lowest
+  detection rate (81.6%)**, not small/distant ones (96.1% small, 100% medium) — worth a closer
+  qualitative look before assuming "small animals are the hard case," since this run's data says
+  otherwise. Night detection rate (99.5%) also slightly exceeds day (89.3%).
+- **Occlusion segmentation is intentionally not included** in either evaluation: only 20 images
+  have manual occlusion tags (from the dataset characterization stage's tagging tool), against an
+  88-crop test set drawn from different source images — expected overlap is near zero, so a
+  segmentation on that basis wouldn't be a real finding.
 
 ## Reproducibility
 
