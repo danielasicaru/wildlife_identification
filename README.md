@@ -242,8 +242,8 @@ produced it.
   penalize. Per-box, IoU-matched detection rate by animal size: **large animals (>10% of frame)
   had the lowest detection rate (81.6%)**, ahead of small (88.2%), with medium animals (2-10%)
   detected 100% of the time — worth a closer qualitative look before assuming "small animals are
-  the hard case," since this run's data says otherwise. Night detection rate (99.5%, image-level)
-  also slightly exceeds day (89.3%).
+  the hard case," since this run's data says otherwise. Night detection rate (97.3%, per image)
+  also slightly exceeds day (87.0%).
 - **Occlusion segmentation is intentionally not included** in either evaluation: only 20 images
   have manual occlusion tags (from the dataset characterization stage's tagging tool), against an
   88-crop test set drawn from different source images — expected overlap is near zero, so a

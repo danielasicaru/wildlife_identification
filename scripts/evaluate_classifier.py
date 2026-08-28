@@ -64,6 +64,15 @@ crop_df = build_crop_dataframe(detections, image_species, image_ground_truth)
 species_counts = crop_df["species"].value_counts()
 crop_df = crop_df[crop_df["species"].map(species_counts) >= MIN_SAMPLES_PER_SPECIES].reset_index(drop=True)
 
+if not NEAR_DUPLICATES_PATH.exists():
+    # Deliberately not falling back to recomputing here (unlike train_classifier.py): this script
+    # must reconstruct the *exact* split a checkpoint was trained on. If the file were missing and
+    # we recomputed near-duplicate pairs fresh, a later re-run of generate_quality_report.py in
+    # between could silently produce a different split than what the checkpoint actually saw.
+    raise SystemExit(
+        f"{NEAR_DUPLICATES_PATH} not found -- required to reconstruct the exact split the "
+        "checkpoint was trained on. Run scripts/generate_quality_report.py first."
+    )
 with open(NEAR_DUPLICATES_PATH, encoding="utf-8") as f:
     duplicate_pairs = [tuple(pair) for pair in json.load(f)]
 groups = group_images_by_near_duplicates(crop_df["source_image"].unique().tolist(), duplicate_pairs)

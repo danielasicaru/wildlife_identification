@@ -16,11 +16,11 @@ Per-box, IoU-matched (IoU >= 0.5) -- whether this specific ground-truth box was 
 
 ## Missed-detection analysis by day/night (pixel-based)
 
-Image-level: whether the image got at least one detection at all, not IoU-matched per box (day/night is inherently an image-level property, unlike animal size below).
+Aggregated per image (day/night is inherently an image-level property, unlike animal size below), but "detected" still means at least one of that image's ground-truth boxes was IoU-matched -- not just that the image has some detection.
 
 | day_night   |   mean |   count |
 |:------------|-------:|--------:|
-| day         |  0.893 |     131 |
-| night       |  0.995 |     183 |
+| day         |  0.87  |     131 |
+| night       |  0.973 |     183 |
 
 This extends the localization stage's recall sanity check (see reports/localization.md) with a proper precision-recall-integrated AP metric and a breakdown by the conditions identified during dataset characterization as likely failure modes (small/distant animals, night IR captures).

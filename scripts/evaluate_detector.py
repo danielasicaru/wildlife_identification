@@ -48,14 +48,15 @@ detections = [
 ]
 
 ap = average_precision(detections, ground_truth, iou_threshold=0.5)
-detected_files = {d["image_id"] for d in detections}  # image-level, used for the day/night breakdown below
 
-# --- Missed-detection analysis by bbox size ---
-# Per-box IoU-matched status, not "did this image get any detection at all" -- an image-level
-# flag would wrongly credit every box in a multi-animal image as "detected" even if only one of
-# them actually was matched, which would understate the real miss rate.
-image_dims = bbox_images.set_index("file_name")[["height", "width"]].to_dict("index")
+# Per-ground-truth-box IoU-matched status, computed once and reused below. A raw "did this image
+# get any detection at all" flag would wrongly credit an image as having found its animal even
+# when the only detection there is a false positive that doesn't actually match any ground-truth
+# box -- both the size and day/night breakdowns need the real per-box signal, not just presence.
 box_matches = per_box_detected(detections, ground_truth, iou_threshold=0.5)
+
+# --- Missed-detection analysis by bbox size (per-box) ---
+image_dims = bbox_images.set_index("file_name")[["height", "width"]].to_dict("index")
 
 size_rows = []
 for file_name, boxes in ground_truth.items():
@@ -72,12 +73,15 @@ ratios["size_bucket"] = pd.cut(
 size_recall = ratios.groupby("size_bucket", observed=True)["detected"].agg(["mean", "count"])
 
 # --- Missed-detection analysis by day/night ---
+# "detected" here means at least one of the image's ground-truth boxes was actually IoU-matched
+# (any(box_matches[...])), not just that the image has some detection -- a false-positive-only
+# image would otherwise be wrongly counted as a successful detection.
 sample_files_with_gt = [f for f in ground_truth if (IMAGES_DIR / f).exists()]
 day_night_rows = [
     {
         "file_name": file_name,
         "day_night": day_night_label(IMAGES_DIR / file_name),
-        "detected": file_name in detected_files,
+        "detected": any(box_matches[file_name]),
     }
     for file_name in sample_files_with_gt
 ]
@@ -105,8 +109,9 @@ if day_night_recall is not None:
     lines += [
         "## Missed-detection analysis by day/night (pixel-based)",
         "",
-        "Image-level: whether the image got at least one detection at all, not IoU-matched per "
-        "box (day/night is inherently an image-level property, unlike animal size below).",
+        "Aggregated per image (day/night is inherently an image-level property, unlike animal "
+        "size below), but \"detected\" still means at least one of that image's ground-truth "
+        "boxes was IoU-matched -- not just that the image has some detection.",
         "",
         day_night_recall.round(3).to_markdown(),
         "",
