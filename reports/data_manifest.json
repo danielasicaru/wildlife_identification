@@ -1,0 +1,26 @@
+{
+  "files": {
+    "data/raw/caltech_images_20210113.json": {
+      "sha256": "0ed31a7371effe1938bdcc5817713ef35c21b868e9974be000fbb7886b95a34c",
+      "size_bytes": 120832679
+    },
+    "data/raw/caltech_bboxes_20200316.json": {
+      "sha256": "9cc208db67b7dcf3fa403920c203a416527628f76a6b838371ab654478bf2ea3",
+      "size_bytes": 38149267
+    },
+    "data/localization/detections.json": {
+      "sha256": "53161bdc7c9cde61719521acd2b9b2d0e34b1fd7732a003040ba5465df1b928b",
+      "size_bytes": 262843
+    }
+  },
+  "directories": {
+    "data/raw/images": {
+      "file_count": 633,
+      "combined_sha256": "297d26ce53c6fb6682b14e6a9460c7e72183893ae21d2ca2a7cd11566c2e1ff7"
+    },
+    "data/localization/crops": {
+      "file_count": 617,
+      "combined_sha256": "37fe6254cd6d3627bdc8a875d2bedb4b98857af4a5e7e0554aaf04c27b3c838b"
+    }
+  }
+}
