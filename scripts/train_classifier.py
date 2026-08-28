@@ -53,10 +53,13 @@ random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 # cuDNN can pick different convolution algorithms across runs even with the seeds above locked;
-# these two flags remove that source of nondeterminism (at some performance cost).
+# these two flags narrow that source of nondeterminism (at some performance cost). They don't
+# guarantee full bitwise determinism on GPU by themselves -- some CUDA ops (e.g. certain
+# scatter/index-add reductions) remain nondeterministic regardless. Full determinism would need
+# torch.use_deterministic_algorithms(True) plus CUBLAS_WORKSPACE_CONFIG, deliberately not enabled
+# here since it can raise on ops without a deterministic implementation.
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
-sampler_generator = torch.Generator().manual_seed(SEED)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
@@ -129,10 +132,6 @@ train_dataset = CropDataset(train_df, CROPS_DIR, species_to_index, is_train=True
 val_dataset = CropDataset(val_df, CROPS_DIR, species_to_index, is_train=False)
 
 train_weights = build_sample_weights(train_df["species"], train_df["species"].value_counts())
-sampler = WeightedRandomSampler(
-    train_weights, num_samples=len(train_weights), replacement=True, generator=sampler_generator
-)
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sampler)
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE)
 
 # --- Train + compare backbones ---
@@ -144,6 +143,16 @@ criterion = nn.CrossEntropyLoss(weight=class_weights)
 
 results = {}
 for backbone in BACKBONES:
+    # Rebuilt per backbone, reseeded to the same SEED each time, so every backbone trains against
+    # an identical batch order -- the backbone is the only thing that varies across iterations,
+    # matching the controlled-comparison intent (otherwise each backbone would continue drawing
+    # from wherever the previous backbone's epochs left the sampler's RNG state).
+    sampler = WeightedRandomSampler(
+        train_weights, num_samples=len(train_weights), replacement=True,
+        generator=torch.Generator().manual_seed(SEED),
+    )
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sampler)
+
     with mlflow.start_run(run_name=backbone):
         mlflow.log_params({
             "backbone": backbone, "seed": SEED, "epochs": EPOCHS,

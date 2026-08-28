@@ -11,16 +11,20 @@
     "data/localization/detections.json": {
       "sha256": "53161bdc7c9cde61719521acd2b9b2d0e34b1fd7732a003040ba5465df1b928b",
       "size_bytes": 262843
+    },
+    "data/near_duplicates.json": {
+      "sha256": "325268a473301d83f2f5ec77b5f8bad6bd023992d738112efe066f1457b98957",
+      "size_bytes": 6591
     }
   },
   "directories": {
     "data/raw/images": {
       "file_count": 633,
-      "combined_sha256": "297d26ce53c6fb6682b14e6a9460c7e72183893ae21d2ca2a7cd11566c2e1ff7"
+      "combined_sha256": "6543ea445cd368deeb74ab9708252ddf37c208f63c5b9276e4ff53c1f042d964"
     },
     "data/localization/crops": {
       "file_count": 617,
-      "combined_sha256": "37fe6254cd6d3627bdc8a875d2bedb4b98857af4a5e7e0554aaf04c27b3c838b"
+      "combined_sha256": "5c896f172846cd379cfd02f18c88338b10cf211820ffda5c9ab17dc61f119df9"
     }
   }
 }
