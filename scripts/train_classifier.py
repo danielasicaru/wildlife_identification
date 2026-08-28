@@ -19,11 +19,12 @@ from torch.utils.data import DataLoader, WeightedRandomSampler
 from src.classifier.dataset import CropDataset
 from src.classifier.engine import compute_class_weights, evaluate, train_one_epoch
 from src.classifier.labeling import build_crop_dataframe
-from src.classifier.models import BACKBONES, build_model
+from src.classifier.models import build_model
 from src.classifier.split import group_images_by_near_duplicates, split_groups
 from src.data.augmentation import build_sample_weights, minority_species
 from src.data.loader import load_annotations, merge_categories
 from src.data.quality import find_near_duplicates
+from src.utils.config import load_config
 
 ROOT = Path(__file__).resolve().parents[1]
 DETECTIONS_PATH = ROOT / "data" / "localization" / "detections.json"
@@ -32,12 +33,17 @@ ANNOTATIONS_PATH = ROOT / "data" / "raw" / "caltech_images_20210113.json"
 BBOX_PATH = ROOT / "data" / "raw" / "caltech_bboxes_20200316.json"
 IMAGES_DIR = ROOT / "data" / "raw" / "images"
 NEAR_DUPLICATES_PATH = ROOT / "data" / "near_duplicates.json"
+DATA_MANIFEST_PATH = ROOT / "reports" / "data_manifest.json"
+CONFIG_PATH = ROOT / "configs" / "train_classifier.yaml"
 NON_SPECIES = {"empty", "car"}
-SEED = 42
-EPOCHS = 5
-BATCH_SIZE = 16
-LEARNING_RATE = 1e-4
-MIN_SAMPLES_PER_SPECIES = 2  # need at least 2 to appear in more than one split
+
+config = load_config(CONFIG_PATH)
+SEED = config["seed"]
+EPOCHS = config["epochs"]
+BATCH_SIZE = config["batch_size"]
+LEARNING_RATE = config["learning_rate"]
+MIN_SAMPLES_PER_SPECIES = config["min_samples_per_species"]
+BACKBONES = tuple(config["backbones"])
 
 for path in (DETECTIONS_PATH, ANNOTATIONS_PATH, BBOX_PATH):
     if not path.exists():
@@ -46,6 +52,11 @@ for path in (DETECTIONS_PATH, ANNOTATIONS_PATH, BBOX_PATH):
 random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
+# cuDNN can pick different convolution algorithms across runs even with the seeds above locked;
+# these two flags remove that source of nondeterminism (at some performance cost).
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+sampler_generator = torch.Generator().manual_seed(SEED)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
@@ -118,7 +129,9 @@ train_dataset = CropDataset(train_df, CROPS_DIR, species_to_index, is_train=True
 val_dataset = CropDataset(val_df, CROPS_DIR, species_to_index, is_train=False)
 
 train_weights = build_sample_weights(train_df["species"], train_df["species"].value_counts())
-sampler = WeightedRandomSampler(train_weights, num_samples=len(train_weights), replacement=True)
+sampler = WeightedRandomSampler(
+    train_weights, num_samples=len(train_weights), replacement=True, generator=sampler_generator
+)
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sampler)
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE)
 
@@ -136,7 +149,13 @@ for backbone in BACKBONES:
             "backbone": backbone, "seed": SEED, "epochs": EPOCHS,
             "batch_size": BATCH_SIZE, "learning_rate": LEARNING_RATE,
             "train_size": len(train_df), "val_size": len(val_df), "num_classes": len(species_to_index),
+            "python_version": sys.version.split()[0],
+            "torch_version": torch.__version__,
+            "cuda_available": torch.cuda.is_available(),
         })
+        mlflow.log_artifact(str(CONFIG_PATH))
+        if DATA_MANIFEST_PATH.exists():
+            mlflow.log_artifact(str(DATA_MANIFEST_PATH))
 
         model = build_model(backbone, num_classes=len(species_to_index)).to(device)
         optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
