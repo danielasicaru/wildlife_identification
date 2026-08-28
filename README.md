@@ -183,13 +183,15 @@ downloaded model.
 matching where available, single-species fallback otherwise), splits crops into train/val/test
 keeping near-duplicate source frames together (`split.py`), wraps them in a `Dataset` reusing the
 augmentation pipeline (`dataset.py`), and provides a backbone factory (`models.py`, ResNet50 /
-EfficientNet-B0 / ViT-B/16) plus class-weighted train/evaluate loop functions (`engine.py`). 22
-unit tests cover the labeling rules, split grouping, dataset wiring, model output shapes, and
-loss/loop correctness.
+EfficientNet-B0 / ViT-B/16) plus class-weighted train/evaluate loop functions and an
+`EarlyStopping` helper (`engine.py`). 26 unit tests cover the labeling rules, split grouping,
+dataset wiring, model output shapes, loss/loop correctness, and early-stopping behavior.
 
 - `scripts/train_classifier.py` — labels crops, splits them, and trains + compares all three
-  backbones with class-weighted cross-entropy and a `WeightedRandomSampler`, logging params and
-  per-epoch metrics to local-file MLflow (`mlruns/`, not committed)
+  backbones with class-weighted cross-entropy, a `WeightedRandomSampler`, and early stopping
+  (patience configurable in `configs/train_classifier.yaml`, stops a backbone once `val_loss`
+  hasn't improved for that many consecutive epochs rather than always running a fixed epoch
+  count), logging params and per-epoch metrics to local-file MLflow (`mlruns/`, not committed)
 - [notebooks/eda.ipynb](notebooks/eda.ipynb) — per-backbone metrics pulled from MLflow and a
   final-accuracy comparison chart
 
@@ -199,14 +201,17 @@ loss/loop correctness.
   genuinely ambiguous — multi-species source images with no ground-truth box to disambiguate
   which crop is which species). Split 416/90/88 (train/val/test), grouped so the 61 near-duplicate
   source-image pairs found during quality checks never land in different splits.
-- **First 3-backbone comparison run** (5 epochs, ~500 training crops, class-weighted loss):
-  ResNet50 14.4%, EfficientNet-B0 17.8%, ViT-B/16 38.9% final validation accuracy. ViT-B/16's lead
-  is a real result of this specific run, now fully seed-locked (see "Reproducibility" below) — not
-  a general claim about which architecture is "best" at this sample size. With single-digit
-  per-species sample counts for several classes, some species appear in the training split only,
-  and these numbers should be read as a pipeline-correctness sanity check (data flows correctly
-  from crops through augmentation, model, class-weighted loss, to MLflow), not as a real
-  performance benchmark. A full-dataset run is future work.
+- **3-backbone comparison run with early stopping** (~500 training crops, class-weighted loss,
+  early stopping patience 10 on val_loss instead of a fixed epoch count): ResNet50 stopped after
+  19 epochs (46.7%), EfficientNet-B0 after 37 (55.6%), ViT-B/16 after 15 (60.0%) final validation
+  accuracy. Letting each backbone train until it stopped improving (rather than a fixed 5-epoch
+  budget) made a real difference — ViT-B/16 alone went from 38.9% to 60.0% val accuracy just from
+  training longer. ViT-B/16's lead is a real result of this specific run, now fully seed-locked
+  (see "Reproducibility" below) — not a general claim about which architecture is "best" at this
+  sample size. With single-digit per-species sample counts for several classes, some species
+  appear in the training split only, and these numbers should be read as a pipeline-correctness
+  sanity check (data flows correctly from crops through augmentation, model, class-weighted loss,
+  to MLflow), not as a real performance benchmark. A full-dataset run is future work.
 
 ## Evaluation
 
@@ -228,14 +233,16 @@ produced it.
 
 ### Key findings
 
-- **Classifier: 42.0% test accuracy** (ViT-B/16, the best backbone from the latest training
-  comparison), on 88 test crops across 19 species. Real per-class numbers vary widely by
-  support — `pig` (1 test example) hits 100% recall, several other single-digit-support classes
-  hit 0%, which is what per-class metrics genuinely look like at this sample size rather than a
-  bug. Errors cluster heavily toward over-predicting `fox` and `squirrel` (visible directly in the
-  confusion matrix), and night-time crops score noticeably worse than day (33.9% vs. 58.6%
-  accuracy) — a real, plausible signal (IR grayscale captures lose the coat-color cues several
-  species depend on) rather than a claim, given the small sample.
+- **Classifier: 52.3% test accuracy** (ViT-B/16, trained with early stopping — up from 42.0%
+  before early stopping was added), on 88 test crops across 19 species. Real per-class numbers
+  vary widely by support — `pig` (1 test example) hits 100% recall, several other
+  single-digit-support classes hit 0%, which is what per-class metrics genuinely look like at this
+  sample size rather than a bug. The confusion matrix shows a much stronger diagonal than the
+  earlier under-trained model, with `deer` and `mountain_lion` as the main remaining error
+  attractors. The day/night accuracy gap also narrowed substantially with more training (55.2%
+  day vs. 50.8% night, both close now — previously 58.6% vs. 33.9%), consistent with a genuine
+  IR-grayscale coat-color-cue-loss effect getting easier for the model to partially compensate for
+  once it's actually converged, rather than a fixed limitation.
 - **Detector: 0.535 Average Precision** (IoU >= 0.5) — meaningfully lower than the localization
   stage's 92.5% raw recall, because AP also penalizes false positives and integrates over the full
   precision-recall curve, including lower-confidence detections that recall-alone doesn't
