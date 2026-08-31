@@ -1,0 +1,7 @@
+backbone: efficientnet_b0
+checkpoint_dir: data/checkpoints
+megadetector_model_name: MDV5A
+min_confidence: 0.2
+box_expansion_fraction: 0.1
+host: 127.0.0.1
+port: 8000
