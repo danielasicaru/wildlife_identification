@@ -30,6 +30,13 @@ def group_images_by_near_duplicates(images: list[str], duplicate_pairs: list[tup
     return {image: find(image) for image in images}
 
 
+def group_images_by_site(source_images: list[str], site_lookup: dict[str, str]) -> dict[str, str]:
+    """Maps each image to its camera site as its group id, for a split that holds out whole sites
+    instead of individual images -- every image from a given site ends up in the same split.
+    """
+    return {image: site_lookup[image] for image in source_images}
+
+
 def split_groups(df: pd.DataFrame, train_frac: float = 0.7, val_frac: float = 0.15, seed: int = 42) -> pd.Series:
     """Assigns each row to train/val/test by shuffling unique group_id values (seeded) and
     greedily filling splits by row-count target fractions, keeping every group intact.

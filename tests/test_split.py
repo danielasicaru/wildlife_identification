@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from src.classifier.split import group_images_by_near_duplicates, split_groups
+from src.classifier.split import group_images_by_near_duplicates, group_images_by_site, split_groups
 
 
 def test_group_images_by_near_duplicates_merges_pairs():
@@ -29,6 +29,15 @@ def test_group_images_by_near_duplicates_no_pairs_gives_singleton_groups():
     groups = group_images_by_near_duplicates(images, [])
 
     assert groups["a.jpg"] != groups["b.jpg"]
+
+
+def test_group_images_by_site_maps_images_to_their_location():
+    site_lookup = {"a.jpg": "12", "b.jpg": "12", "c.jpg": "45"}
+
+    groups = group_images_by_site(["a.jpg", "b.jpg", "c.jpg"], site_lookup)
+
+    assert groups["a.jpg"] == groups["b.jpg"] == "12"
+    assert groups["c.jpg"] == "45"
 
 
 def test_split_groups_keeps_duplicate_group_together():
