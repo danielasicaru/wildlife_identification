@@ -13,15 +13,10 @@ os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
 import mlflow
 import numpy as np
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from src.classifier.data_prep import build_labeled_crop_df
-from src.classifier.dataset import CropDataset
-from src.classifier.engine import EarlyStopping, compute_class_weights, evaluate, train_one_epoch
-from src.classifier.models import build_model
 from src.classifier.split import group_images_by_near_duplicates, split_groups
-from src.data.augmentation import build_sample_weights, minority_species
+from src.classifier.training_run import train_and_compare_backbones
 from src.data.quality import find_near_duplicates
 from src.utils.config import load_config
 
@@ -100,99 +95,16 @@ if train_df.empty or val_df.empty:
     raise SystemExit("Train or val split is empty -- not enough labeled crops to proceed.")
 
 species_to_index = {s: i for i, s in enumerate(sorted(crop_df["species"].unique()))}
-train_minority = minority_species(train_df["species"].value_counts())
 
-# --- Datasets/loaders ---
-train_dataset = CropDataset(train_df, CROPS_DIR, species_to_index, is_train=True, minority_species=train_minority)
-val_dataset = CropDataset(val_df, CROPS_DIR, species_to_index, is_train=False)
-
-train_weights = build_sample_weights(train_df["species"], train_df["species"].value_counts())
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE)
-
-# --- Train + compare backbones ---
 mlflow.set_tracking_uri((ROOT / "mlruns").as_uri())
 mlflow.set_experiment("camera-trap-classifier")
 
-class_weights = compute_class_weights(train_df["species"], species_to_index).to(device)
-criterion = nn.CrossEntropyLoss(weight=class_weights)
-
-results = {}
-for backbone in BACKBONES:
-    # Reseeded to SEED per backbone so each one sees an identical batch order -- backbone is the
-    # only thing that varies across iterations.
-    sampler = WeightedRandomSampler(
-        train_weights, num_samples=len(train_weights), replacement=True,
-        generator=torch.Generator().manual_seed(SEED),
-    )
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sampler)
-
-    with mlflow.start_run(run_name=backbone):
-        mlflow.log_params({
-            "backbone": backbone, "seed": SEED, "epochs": EPOCHS,
-            "batch_size": BATCH_SIZE, "learning_rate": LEARNING_RATE,
-            "train_size": len(train_df), "val_size": len(val_df), "num_classes": len(species_to_index),
-            "python_version": sys.version.split()[0],
-            "torch_version": torch.__version__,
-            "cuda_available": torch.cuda.is_available(),
-        })
-        mlflow.log_artifact(str(CONFIG_PATH))
-        if DATA_MANIFEST_PATH.exists():
-            mlflow.log_artifact(str(DATA_MANIFEST_PATH))
-
-        model = build_model(backbone, num_classes=len(species_to_index)).to(device)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
-        early_stopping = EarlyStopping(patience=EARLY_STOPPING_PATIENCE, mode="min")
-
-        best_state_dict = None
-        best_val_metrics = None
-        best_epoch = 0
-        epochs_trained = 0
-        for epoch in range(EPOCHS):
-            train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
-            val_metrics = evaluate(model, val_loader, criterion, device)
-            epochs_trained = epoch + 1
-            mlflow.log_metrics(
-                {"train_loss": train_loss, "val_loss": val_metrics["loss"], "val_accuracy": val_metrics["accuracy"]},
-                step=epoch,
-            )
-            print(
-                f"[{backbone}] epoch {epoch + 1}/{EPOCHS}: train_loss={train_loss:.4f} "
-                f"val_loss={val_metrics['loss']:.4f} val_acc={val_metrics['accuracy']:.3f}"
-            )
-
-            should_stop = early_stopping.step(val_metrics["loss"])
-            if early_stopping.epochs_without_improvement == 0:
-                # New best -- keep its weights (on CPU, so we're not holding two copies of the
-                # model on GPU at once) so a later, worse epoch doesn't overwrite the checkpoint.
-                best_state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-                best_val_metrics = val_metrics
-                best_epoch = epochs_trained
-
-            if should_stop:
-                print(
-                    f"[{backbone}] stopping early after {epochs_trained} epochs -- val_loss hasn't "
-                    f"improved for {EARLY_STOPPING_PATIENCE} consecutive epochs "
-                    f"(best val_loss={early_stopping.best_score:.4f} at epoch {best_epoch})"
-                )
-                break
-
-        model.load_state_dict(best_state_dict)
-        results[backbone] = best_val_metrics
-        mlflow.log_metrics({"final_val_accuracy": best_val_metrics["accuracy"]})
-        mlflow.log_params({
-            "epochs_trained": epochs_trained, "stopped_early": early_stopping.should_stop,
-            "best_epoch": best_epoch,
-        })
-
-        CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
-        checkpoint_path = CHECKPOINT_DIR / f"{backbone}.pt"
-        torch.save(model.state_dict(), checkpoint_path)
-        mlflow.log_artifact(str(checkpoint_path))
-
-        species_mapping_path = CHECKPOINT_DIR / "species_to_index.json"
-        with open(species_mapping_path, "w", encoding="utf-8") as f:
-            json.dump(species_to_index, f, indent=2)
-        mlflow.log_artifact(str(species_mapping_path))
+artifact_paths = [CONFIG_PATH] + ([DATA_MANIFEST_PATH] if DATA_MANIFEST_PATH.exists() else [])
+results = train_and_compare_backbones(
+    train_df, val_df, CROPS_DIR, species_to_index, BACKBONES, SEED, EPOCHS, BATCH_SIZE,
+    LEARNING_RATE, EARLY_STOPPING_PATIENCE, device, CHECKPOINT_DIR,
+    mlflow_params={}, artifact_paths=artifact_paths,
+)
 
 print("\nComparison (final val accuracy):")
 for backbone, metrics in results.items():
