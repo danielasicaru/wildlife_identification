@@ -16,13 +16,12 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, WeightedRandomSampler
 
+from src.classifier.data_prep import build_labeled_crop_df
 from src.classifier.dataset import CropDataset
 from src.classifier.engine import EarlyStopping, compute_class_weights, evaluate, train_one_epoch
-from src.classifier.labeling import build_crop_dataframe
 from src.classifier.models import build_model
 from src.classifier.split import group_images_by_near_duplicates, split_groups
 from src.data.augmentation import build_sample_weights, minority_species
-from src.data.loader import load_annotations, merge_categories
 from src.data.quality import find_near_duplicates
 from src.utils.config import load_config
 
@@ -36,7 +35,6 @@ NEAR_DUPLICATES_PATH = ROOT / "data" / "near_duplicates.json"
 DATA_MANIFEST_PATH = ROOT / "reports" / "data_manifest.json"
 CONFIG_PATH = ROOT / "configs" / "train_classifier.yaml"
 CHECKPOINT_DIR = ROOT / "data" / "checkpoints"
-NON_SPECIES = {"empty", "car"}
 
 config = load_config(CONFIG_PATH)
 SEED = config["seed"]
@@ -67,30 +65,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
 
 # --- Per-crop labels ---
-with open(DETECTIONS_PATH, encoding="utf-8") as f:
-    detections = json.load(f)
-
-images_df, annotations_df, categories_df = load_annotations(ANNOTATIONS_PATH)
-merged = merge_categories(annotations_df, categories_df)
-merged = merged.merge(images_df[["id", "file_name"]], left_on="image_id", right_on="id", suffixes=("", "_img"))
-merged = merged[~merged["name"].isin(NON_SPECIES)]
-image_species = merged.groupby("file_name")["name"].apply(set).to_dict()
-
-with open(BBOX_PATH, encoding="utf-8") as f:
-    bbox_data = json.load(f)
-bbox_images = {im["id"]: im["file_name"] for im in bbox_data["images"]}
-image_ground_truth: dict[str, list] = {}
-for ann in bbox_data["annotations"]:
-    file_name = bbox_images.get(ann["image_id"])
-    species = image_species.get(file_name)
-    if file_name is None or not species or len(species) != 1:
-        continue  # only usable when we independently know the (single) species for this image
-    bbox_abs = tuple(round(v) for v in ann["bbox"])
-    image_ground_truth.setdefault(file_name, []).append((bbox_abs, next(iter(species))))
-
-crop_df = build_crop_dataframe(detections, image_species, image_ground_truth)
-species_counts = crop_df["species"].value_counts()
-crop_df = crop_df[crop_df["species"].map(species_counts) >= MIN_SAMPLES_PER_SPECIES].reset_index(drop=True)
+crop_df, images_df = build_labeled_crop_df(DETECTIONS_PATH, ANNOTATIONS_PATH, BBOX_PATH, MIN_SAMPLES_PER_SPECIES)
 print(f"{len(crop_df)} labeled crops across {crop_df['species'].nunique()} species")
 
 # --- Near-duplicate-aware split ---

@@ -15,11 +15,10 @@ import matplotlib.pyplot as plt
 import mlflow
 import torch
 
+from src.classifier.data_prep import build_labeled_crop_df
 from src.classifier.dataset import CropDataset
-from src.classifier.labeling import build_crop_dataframe
 from src.classifier.models import BACKBONES, build_model
 from src.classifier.split import group_images_by_near_duplicates, split_groups
-from src.data.loader import load_annotations, merge_categories
 from src.evaluation.classifier_metrics import confusion_matrix_df, per_class_report
 from src.evaluation.segmentation import build_site_lookup, day_night_label
 from src.utils.config import load_config
@@ -33,36 +32,13 @@ IMAGES_DIR = ROOT / "data" / "raw" / "images"
 NEAR_DUPLICATES_PATH = ROOT / "data" / "near_duplicates.json"
 REPORT_PATH = ROOT / "reports" / "classifier_evaluation.md"
 CONFUSION_MATRIX_PATH = ROOT / "reports" / "confusion_matrix.png"
-NON_SPECIES = {"empty", "car"}
 
 train_config = load_config(ROOT / "configs" / "train_classifier.yaml")
 SEED = train_config["seed"]
 MIN_SAMPLES_PER_SPECIES = train_config["min_samples_per_species"]
 
 # --- Rebuild the exact same labeled/split crop_df train_classifier.py used ---
-with open(DETECTIONS_PATH, encoding="utf-8") as f:
-    detections = json.load(f)
-images_df, annotations_df, categories_df = load_annotations(ANNOTATIONS_PATH)
-merged = merge_categories(annotations_df, categories_df)
-merged = merged.merge(images_df[["id", "file_name"]], left_on="image_id", right_on="id", suffixes=("", "_img"))
-merged = merged[~merged["name"].isin(NON_SPECIES)]
-image_species = merged.groupby("file_name")["name"].apply(set).to_dict()
-
-with open(BBOX_PATH, encoding="utf-8") as f:
-    bbox_data = json.load(f)
-bbox_images = {im["id"]: im["file_name"] for im in bbox_data["images"]}
-image_ground_truth: dict[str, list] = {}
-for ann in bbox_data["annotations"]:
-    file_name = bbox_images.get(ann["image_id"])
-    species = image_species.get(file_name)
-    if file_name is None or not species or len(species) != 1:
-        continue
-    bbox_abs = tuple(round(v) for v in ann["bbox"])
-    image_ground_truth.setdefault(file_name, []).append((bbox_abs, next(iter(species))))
-
-crop_df = build_crop_dataframe(detections, image_species, image_ground_truth)
-species_counts = crop_df["species"].value_counts()
-crop_df = crop_df[crop_df["species"].map(species_counts) >= MIN_SAMPLES_PER_SPECIES].reset_index(drop=True)
+crop_df, images_df = build_labeled_crop_df(DETECTIONS_PATH, ANNOTATIONS_PATH, BBOX_PATH, MIN_SAMPLES_PER_SPECIES)
 
 if not NEAR_DUPLICATES_PATH.exists():
     # No fallback recompute here (unlike train_classifier.py) -- this script must reconstruct the
