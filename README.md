@@ -55,6 +55,8 @@ python scripts/generate_localization_report.py
 python scripts/generate_data_manifest.py       # optional, referenced by train_classifier.py if present
 python scripts/train_classifier.py             # MLflow tracking, local file store
 python scripts/evaluate_classifier.py
+python scripts/train_classifier_site_holdout.py  # optional: site-disjoint generalization check
+python scripts/evaluate_classifier_site_holdout.py
 python scripts/evaluate_detector.py
 python scripts/serve.py                        # runs the inference API on 127.0.0.1:8000
 python -m pytest tests/ -v
@@ -162,6 +164,13 @@ artifacts so a model can be reloaded independently of its training run.
   best-epoch-weight restoration was fixed) on 88 test crops across 19 species. Per-class numbers
   vary widely by support, as expected at this scale. Day/night accuracy gap is now small (48.3% vs.
   47.5%) — down from a 25-point gap before early stopping existed at all.
+- **Site-holdout generalization check: 38.8% test accuracy** on a second split that holds out
+  entire camera sites instead of just images (85 crops across 19 species from 12 sites never seen
+  during training) — versus 47.7% on the primary near-duplicate-image split, where a test crop's
+  camera site can still have appeared in training. The ~9-point gap is the cost of generalizing to
+  genuinely new locations at this dataset size. The two splits also disagree on the best backbone
+  (ResNet50 here vs. EfficientNet-B0 on the primary split) — read as a small-sample caveat, not a
+  settled comparison. See `reports/site_holdout_evaluation.md`.
 - **Detector: 0.535 Average Precision** (IoU >= 0.5) — lower than the 92.5% raw recall since AP
   also penalizes false positives. Counter-intuitively, large animals (>10% of frame) had the
   lowest per-box detection rate (81.6%) vs. small (88.2%) and medium (100%).
