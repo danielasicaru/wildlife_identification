@@ -20,10 +20,10 @@ production-shaped FastAPI inference service.
 **Dataset:** Caltech Camera Traps (via LILA BC), paired with the "Recognition in Terra Incognita"
 benchmark for cross-site generalization.
 
-**Stack:** Python, PyTorch, MegaDetector, FastAPI, MLflow, Docker.
+**Stack:** Python, PyTorch, MegaDetector, FastAPI, MLflow. No Docker or other licensed tooling —
+the service runs directly via `uvicorn`.
 
-**Status:** dataset characterization, augmentation, localization, classifier training, and
-evaluation complete. Serving not yet started.
+**Status:** all five stages complete, including serving.
 
 ## Setup
 
@@ -43,7 +43,7 @@ pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-h
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128  # or the CPU index
 pip install --no-deps megadetector clipboard dill fastquadtree humanfriendly jsonpickle mkl \
     scikit-learn thop ultralytics-yolov5 seaborn  # --no-deps: avoids a conflict with opencv-python-headless
-pip install mlflow
+pip install mlflow fastapi uvicorn python-multipart
 ```
 
 Pipeline, in order:
@@ -56,6 +56,7 @@ python scripts/generate_data_manifest.py       # optional, referenced by train_c
 python scripts/train_classifier.py             # MLflow tracking, local file store
 python scripts/evaluate_classifier.py
 python scripts/evaluate_detector.py
+python scripts/serve.py                        # runs the inference API on 127.0.0.1:8000
 python -m pytest tests/ -v
 ```
 
@@ -166,6 +167,34 @@ artifacts so a model can be reloaded independently of its training run.
   lowest per-box detection rate (81.6%) vs. small (88.2%) and medium (100%).
 - **Occlusion segmentation is intentionally skipped**: only 20 manually tagged images against an
   88-crop test set — not enough overlap for a real finding.
+
+## Serving
+
+`src/api/`: a single `POST /predict` endpoint (plus `GET /health`). No Docker or other licensed
+tooling — runs directly via `uvicorn`.
+
+- `config.py` — `ServeConfig` loaded from `configs/serve.yaml`, same pattern as every other script
+- `state.py` — `AppState` holds the loaded MegaDetector, classifier, label mapping, and transform;
+  built once by `build_app_state()`, never per-request
+- `inference.py` — `predict(image, state)`: detect → crop → classify, calling the exact same
+  `run_detection`/`filter_animal_detections`/`expand_bbox`/`crop_to_bbox`/`build_val_transform`
+  functions the localization and classifier stages already use, so serving can't silently drift
+  from what the model was trained/evaluated on
+- `app.py` — `create_app(config, state=None)`: a factory, not a module-level `app` object. If
+  `state` is passed in, it's attached directly and no loading happens — this is what makes the app
+  testable without downloading MegaDetector or loading a checkpoint in every test run. If `state`
+  is `None` (the real path), a `lifespan` hook builds it once at startup and stores it on
+  `app.state` — never at import time, never rebuilt per-request.
+
+```bash
+python scripts/serve.py
+curl -X POST http://127.0.0.1:8000/predict -F "file=@path/to/image.jpg"
+# {"detections":[{"bbox":[949,0,1099,1494],"species":"cow","confidence":0.999}]}
+```
+
+Verified against several real sample images — structurally correct end to end (bbox, species,
+confidence per detection). Prediction quality reflects the classifier's known small-sample
+limitations from the evaluation stage above, not a serving bug.
 
 ## Reproducibility
 
