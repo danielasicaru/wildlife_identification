@@ -124,7 +124,7 @@ filtering (`detector.py`), bbox expansion and cropping (`crop.py`), IoU-based re
 fallback (`labeling.py`), near-duplicate-aware train/val/test split (`split.py`), a `Dataset`
 reusing the augmentation pipeline (`dataset.py`), a backbone factory for ResNet50/EfficientNet-B0/
 ViT-B/16 (`models.py`), and class-weighted train/evaluate loops plus early stopping (`engine.py`).
-26 unit tests.
+30 unit tests.
 
 - `scripts/train_classifier.py` — trains + compares all three backbones with class-weighted loss,
   a `WeightedRandomSampler`, and early stopping (patience in `configs/train_classifier.yaml`,
