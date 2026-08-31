@@ -51,6 +51,20 @@ def test_predict_returns_empty_list_when_no_animal_detected(monkeypatch):
     assert result == []
 
 
+def test_predict_drops_detections_below_min_confidence(monkeypatch):
+    species_to_index = {"fox": 0, "coyote": 1}
+    # confidence 0.1 is below the state's min_confidence (0.2, set in _fake_state)
+    detections = [{"category": "1", "conf": 0.1, "bbox": [0.1, 0.1, 0.5, 0.5]}]
+    state, raw_result = _fake_state(detections, torch.tensor([1.0, 0.0]), species_to_index)
+
+    monkeypatch.setattr("src.api.inference.run_detection", lambda *a, **k: raw_result)
+
+    image = Image.new("RGB", (100, 100))
+    result = predict(image, state)
+
+    assert result == []
+
+
 def test_predict_returns_bbox_species_confidence_per_detection(monkeypatch):
     species_to_index = {"fox": 0, "coyote": 1}
     detections = [{"category": "1", "conf": 0.9, "bbox": [0.1, 0.1, 0.5, 0.5]}]

@@ -44,6 +44,34 @@ def test_predict_endpoint_returns_detections(monkeypatch, tmp_path):
     assert body["detections"] == [{"bbox": [1, 2, 3, 4], "species": "fox", "confidence": 0.9}]
 
 
+def test_predict_endpoint_rejects_non_image_upload():
+    app = create_app(_dummy_config(), state=MagicMock())
+
+    with TestClient(app) as client:
+        response = client.post("/predict", files={"file": ("not_an_image.txt", b"hello world", "text/plain")})
+
+    assert response.status_code == 400
+
+
+def test_predict_endpoint_returns_500_when_inference_raises(monkeypatch, tmp_path):
+    from PIL import Image
+
+    app = create_app(_dummy_config(), state=MagicMock())
+
+    def raise_error(image, state):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("src.api.app.predict", raise_error)
+
+    image_path = tmp_path / "test.jpg"
+    Image.new("RGB", (50, 50)).save(image_path)
+
+    with TestClient(app) as client, open(image_path, "rb") as f:
+        response = client.post("/predict", files={"file": ("test.jpg", f, "image/jpeg")})
+
+    assert response.status_code == 500
+
+
 def test_create_app_uses_lifespan_when_no_state_given(monkeypatch):
     """Confirms the expensive loader is wired to lifespan, not called eagerly at create_app() time."""
     build_called = []
