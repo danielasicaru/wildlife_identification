@@ -17,7 +17,7 @@ import torch
 
 from src.classifier.data_prep import build_labeled_crop_df
 from src.classifier.dataset import CropDataset
-from src.classifier.models import BACKBONES, build_model
+from src.classifier.models import build_model
 from src.classifier.split import group_images_by_near_duplicates, split_groups
 from src.evaluation.classifier_metrics import confusion_matrix_df, per_class_report
 from src.evaluation.segmentation import build_site_lookup, day_night_label
@@ -69,7 +69,7 @@ if runs.empty:
 # Only compare within the most recent batch of runs (one per backbone) -- older historical runs
 # used different code/data and aren't a fair or even loadable comparison (their checkpoints may
 # not exist if they predate checkpoint saving).
-latest_batch = runs.head(len(BACKBONES))
+latest_batch = runs.head(len(train_config["backbones"]))
 best_run = latest_batch.sort_values("metrics.final_val_accuracy", ascending=False).iloc[0]
 backbone = best_run["tags.mlflow.runName"]
 print(f"Evaluating best run from the latest batch: {backbone} (val_accuracy={best_run['metrics.final_val_accuracy']:.3f})")
