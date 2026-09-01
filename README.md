@@ -58,6 +58,7 @@ python scripts/train_classifier.py             # MLflow tracking, local file sto
 python scripts/evaluate_classifier.py
 python scripts/train_classifier_site_holdout.py  # optional: site-disjoint generalization check
 python scripts/evaluate_classifier_site_holdout.py
+python scripts/train_classifier_multiseed.py     # optional: 5-seed backbone comparison
 python scripts/evaluate_detector.py
 python scripts/serve.py                        # runs the inference API on 127.0.0.1:8000
 python -m pytest tests/ -v
@@ -145,7 +146,8 @@ ViT-B/16 (`models.py`), and class-weighted train/evaluate loops plus early stopp
   kept climbing past its best-*loss* epoch (57.8% by epoch 15 vs. 48.9% at epoch 5) — loss and
   accuracy don't always move together on a 90-example validation set, so which one you select on
   changes the checkpoint you end up with. This is a single seed-locked run on ~500 crops across
-  imbalanced classes, read as a pipeline-correctness check, not a performance benchmark.
+  imbalanced classes, read as a pipeline-correctness check, not a performance benchmark -- see the
+  multi-seed comparison below for why that caveat isn't just boilerplate here.
 
 ## Evaluation
 
@@ -156,6 +158,8 @@ artifacts so a model can be reloaded independently of its training run.
 
 - `scripts/evaluate_classifier.py` — best backbone, held-out test split: per-class P/R/F1,
   confusion matrix, day/night and per-site breakdowns, full misclassification list
+- `scripts/train_classifier_multiseed.py` — trains + evaluates all three backbones across 5 seeds,
+  reseeding the split each time; reports mean/std test accuracy (`reports/multiseed_evaluation.md`)
 - `scripts/evaluate_detector.py` — average precision, missed-detection analysis by size/day-night
 - [notebooks/eda.ipynb](notebooks/eda.ipynb) — confusion matrix and raw report text
 
@@ -165,6 +169,13 @@ artifacts so a model can be reloaded independently of its training run.
   best-epoch-weight restoration was fixed) on 88 test crops across 19 species. Per-class numbers
   vary widely by support, as expected at this scale. Day/night accuracy gap is now small (48.3% vs.
   47.5%) — down from a 25-point gap before early stopping existed at all.
+- **Multi-seed comparison changes the story above**: across 5 seeds (reseeding the split, not just
+  model init), the three backbones' mean test accuracy is statistically indistinguishable --
+  ViT-B/16 54.7% (± 10.9), ResNet50 54.0% (± 14.9), EfficientNet-B0 53.8% (± 4.2). "EfficientNet-B0
+  is the best backbone" is not a defensible claim about the architecture, only about what happened
+  on seed 42. Seed 42 was also the *worst*-performing seed for every backbone (29.5-47.7% vs.
+  52.3-67.0% on the other four seeds), so the 47.7% headline number above is pessimistic relative
+  to the 5-seed average, not representative of it. See `reports/multiseed_evaluation.md`.
 - **Site-holdout generalization check: 38.8% test accuracy** on a second split that holds out
   entire camera sites instead of just images (85 crops across 19 species from 12 sites never seen
   during training) — versus 47.7% on the primary near-duplicate-image split, where a test crop's
