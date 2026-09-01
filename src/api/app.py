@@ -35,7 +35,14 @@ def create_app(config: ServeConfig, state: AppState | None = None) -> FastAPI:
     # (and everything else, e.g. /health) for other concurrent requests.
     @app.post("/predict")
     def predict_endpoint(file: UploadFile):
-        image_bytes = file.file.read()
+        max_bytes = config.max_upload_bytes
+        # Bounded read (max_bytes + 1, not just max_bytes) -- distinguishes "exactly at the
+        # limit" from "over it" without ever buffering more than one byte past the limit,
+        # regardless of how large the actual upload is.
+        image_bytes = file.file.read(max_bytes + 1)
+        if len(image_bytes) > max_bytes:
+            raise HTTPException(status_code=413, detail=f"Upload exceeds the {max_bytes}-byte limit.")
+
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         except UnidentifiedImageError:

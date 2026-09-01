@@ -5,3 +5,4 @@ min_confidence: 0.2
 box_expansion_fraction: 0.1
 host: 127.0.0.1
 port: 8000
+max_upload_bytes: 10485760  # 10 MiB

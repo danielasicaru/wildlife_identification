@@ -14,6 +14,7 @@ class ServeConfig:
     box_expansion_fraction: float
     host: str
     port: int
+    max_upload_bytes: int
 
 
 def load_serve_config(path: str | Path) -> ServeConfig:

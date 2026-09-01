@@ -6,10 +6,11 @@ from src.api.app import create_app
 from src.api.config import ServeConfig
 
 
-def _dummy_config() -> ServeConfig:
+def _dummy_config(max_upload_bytes: int = 10_485_760) -> ServeConfig:
     return ServeConfig(
         backbone="efficientnet_b0", checkpoint_dir="unused", megadetector_model_name="unused",
         min_confidence=0.2, box_expansion_fraction=0.1, host="127.0.0.1", port=8000,
+        max_upload_bytes=max_upload_bytes,
     )
 
 
@@ -51,6 +52,18 @@ def test_predict_endpoint_rejects_non_image_upload():
         response = client.post("/predict", files={"file": ("not_an_image.txt", b"hello world", "text/plain")})
 
     assert response.status_code == 400
+
+
+def test_predict_endpoint_rejects_upload_over_size_limit(tmp_path):
+    app = create_app(_dummy_config(max_upload_bytes=100), state=MagicMock())
+
+    oversized_path = tmp_path / "big.jpg"
+    oversized_path.write_bytes(b"x" * 200)
+
+    with TestClient(app) as client, open(oversized_path, "rb") as f:
+        response = client.post("/predict", files={"file": ("big.jpg", f, "image/jpeg")})
+
+    assert response.status_code == 413
 
 
 def test_predict_endpoint_returns_500_when_inference_raises(monkeypatch, tmp_path):

@@ -20,7 +20,7 @@ def test_build_app_state_wires_config_and_species_mapping(tmp_path, monkeypatch)
     config = ServeConfig(
         backbone="efficientnet_b0", checkpoint_dir=str(checkpoint_dir),
         megadetector_model_name="MDV5A", min_confidence=0.3, box_expansion_fraction=0.15,
-        host="127.0.0.1", port=8000,
+        host="127.0.0.1", port=8000, max_upload_bytes=10_485_760,
     )
 
     state = build_app_state(config)

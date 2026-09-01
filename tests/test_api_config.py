@@ -11,6 +11,7 @@ def test_load_serve_config_returns_dataclass(tmp_path):
         "box_expansion_fraction: 0.1\n"
         "host: 127.0.0.1\n"
         "port: 8000\n"
+        "max_upload_bytes: 10485760\n"
     )
 
     config = load_serve_config(config_path)

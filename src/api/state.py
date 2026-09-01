@@ -36,7 +36,9 @@ def build_app_state(config: ServeConfig) -> AppState:
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     classifier = build_model(config.backbone, num_classes=len(species_to_index), pretrained=False).to(device)
-    classifier.load_state_dict(torch.load(checkpoint_dir / f"{config.backbone}.pt", map_location=device))
+    classifier.load_state_dict(
+        torch.load(checkpoint_dir / f"{config.backbone}.pt", map_location=device, weights_only=True)
+    )
     classifier.eval()
 
     detector = load_detector(config.megadetector_model_name)
