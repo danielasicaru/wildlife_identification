@@ -16,7 +16,7 @@ import torch
 
 from src.classifier.data_prep import build_labeled_crop_df
 from src.classifier.dataset import CropDataset
-from src.classifier.models import BACKBONES, build_model
+from src.classifier.models import build_model
 from src.classifier.split import group_images_by_site, split_groups
 from src.evaluation.classifier_metrics import per_class_report
 from src.evaluation.segmentation import build_site_lookup
@@ -53,7 +53,7 @@ runs = mlflow.search_runs(experiment_names=["camera-trap-classifier-site-holdout
 if runs.empty:
     raise SystemExit("No MLflow runs found -- run scripts/train_classifier_site_holdout.py first.")
 
-latest_batch = runs.head(len(BACKBONES))
+latest_batch = runs.head(len(train_config["backbones"]))
 best_run = latest_batch.sort_values("metrics.final_val_accuracy", ascending=False).iloc[0]
 backbone = best_run["tags.mlflow.runName"]
 print(f"Evaluating best run from the latest site-holdout batch: {backbone} (val_accuracy={best_run['metrics.final_val_accuracy']:.3f})")

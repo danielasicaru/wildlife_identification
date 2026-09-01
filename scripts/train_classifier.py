@@ -60,7 +60,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
 
 # --- Per-crop labels ---
-crop_df, images_df = build_labeled_crop_df(DETECTIONS_PATH, ANNOTATIONS_PATH, BBOX_PATH, MIN_SAMPLES_PER_SPECIES)
+crop_df, _ = build_labeled_crop_df(DETECTIONS_PATH, ANNOTATIONS_PATH, BBOX_PATH, MIN_SAMPLES_PER_SPECIES)
 print(f"{len(crop_df)} labeled crops across {crop_df['species'].nunique()} species")
 
 # --- Near-duplicate-aware split ---
