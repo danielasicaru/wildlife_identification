@@ -1,5 +1,4 @@
 import pandas as pd
-import pytest
 
 from src.classifier.split import group_images_by_near_duplicates, group_images_by_site, split_groups
 

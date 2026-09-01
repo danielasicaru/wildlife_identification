@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 from PIL import Image
 
 from src.evaluation.segmentation import build_site_lookup, day_night_label

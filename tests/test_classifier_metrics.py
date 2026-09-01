@@ -1,4 +1,3 @@
-import pandas as pd
 
 from src.evaluation.classifier_metrics import confusion_matrix_df, per_class_report
 

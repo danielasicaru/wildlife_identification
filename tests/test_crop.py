@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 from PIL import Image
 
 from src.localization.crop import crop_to_bbox, expand_bbox

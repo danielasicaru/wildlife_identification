@@ -1,5 +1,3 @@
-import pandas as pd
-import pytest
 
 from src.classifier.labeling import build_crop_dataframe, match_crop_to_ground_truth
 

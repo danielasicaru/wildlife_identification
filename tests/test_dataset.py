@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
-import torch
 from PIL import Image
 
 import src.classifier.dataset as dataset_module
