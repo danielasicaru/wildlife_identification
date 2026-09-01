@@ -43,6 +43,7 @@ pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-h
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128  # or the CPU index
 pip install --no-deps megadetector clipboard dill fastquadtree humanfriendly jsonpickle mkl \
     scikit-learn thop ultralytics-yolov5 seaborn  # --no-deps: avoids a conflict with opencv-python-headless
+pip install fire protobuf psutil requests scipy send2trash tensorboard tqdm  # megadetector/ultralytics-yolov5's own deps, skipped above by --no-deps
 pip install mlflow fastapi uvicorn python-multipart
 ```
 

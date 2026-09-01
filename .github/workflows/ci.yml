@@ -22,6 +22,7 @@ jobs:
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
           pip install --no-deps megadetector clipboard dill fastquadtree humanfriendly jsonpickle mkl \
             scikit-learn thop ultralytics-yolov5 seaborn
+          pip install fire protobuf psutil requests scipy send2trash tensorboard tqdm
           pip install mlflow fastapi uvicorn python-multipart
 
       - name: Lint (unused imports, redefinitions, unused variables)
