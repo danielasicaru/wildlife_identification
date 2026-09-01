@@ -16,8 +16,8 @@ import mlflow
 import torch
 
 from src.classifier.data_prep import build_labeled_crop_df
-from src.classifier.dataset import CropDataset
 from src.classifier.models import build_model
+from src.classifier.prediction import predict_test_set
 from src.classifier.split import group_images_by_near_duplicates, split_groups
 from src.evaluation.classifier_metrics import confusion_matrix_df, per_class_report
 from src.evaluation.segmentation import build_site_lookup, day_night_label
@@ -85,30 +85,13 @@ model.load_state_dict(torch.load(artifact_dir / f"{backbone}.pt", map_location=d
 model.eval()
 
 # --- Run on the test split ---
-test_dataset = CropDataset(test_df, CROPS_DIR, species_to_index, is_train=False)
-y_true, y_pred, confidences = [], [], []
-misclassified = []
-
-with torch.no_grad():
-    for i in range(len(test_dataset)):
-        image, label_index = test_dataset[i]
-        row = test_df.iloc[i]
-        logits = model(image.unsqueeze(0).to(device))
-        probs = torch.softmax(logits, dim=1)
-        pred_index = int(probs.argmax(dim=1).item())
-        confidence = float(probs[0, pred_index].item())
-
-        true_species = index_to_species[label_index]
-        pred_species = index_to_species[pred_index]
-        y_true.append(true_species)
-        y_pred.append(pred_species)
-        confidences.append(confidence)
-
-        if true_species != pred_species:
-            misclassified.append({
-                "crop_file": row["crop_file"], "true": true_species, "predicted": pred_species,
-                "confidence": confidence,
-            })
+predictions = predict_test_set(model, test_df, CROPS_DIR, species_to_index, index_to_species, device)
+y_true = predictions["true"].tolist()
+y_pred = predictions["predicted"].tolist()
+misclassified = [
+    {"crop_file": row["crop_file"], "true": row["true"], "predicted": row["predicted"], "confidence": row["confidence"]}
+    for _, row in predictions[predictions["true"] != predictions["predicted"]].iterrows()
+]
 
 labels = sorted(species_to_index.keys())
 report = per_class_report(y_true, y_pred, labels)
