@@ -39,7 +39,7 @@ Or manually:
 ```bash
 conda create -n wildlife-id python=3.11
 conda activate wildlife-id
-pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-headless imagehash numpy pillow pyyaml tabulate
+pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-headless imagehash numpy pillow pyyaml tabulate ruff
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128  # or the CPU index
 pip install --no-deps megadetector clipboard dill fastquadtree humanfriendly jsonpickle mkl \
     scikit-learn thop ultralytics-yolov5 seaborn  # --no-deps: avoids a conflict with opencv-python-headless
