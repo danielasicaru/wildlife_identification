@@ -16,14 +16,22 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install core dependencies
+        run: pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-headless imagehash numpy pillow pyyaml tabulate ruff
+
+      - name: Install CPU torch
+        run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install megadetector/ultralytics-yolov5 (--no-deps)
         run: |
-          pip install pandas pytest matplotlib jupyter nbconvert ipykernel opencv-python-headless imagehash numpy pillow pyyaml tabulate ruff
-          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
           pip install --no-deps megadetector clipboard dill fastquadtree humanfriendly jsonpickle mkl \
             scikit-learn thop ultralytics-yolov5 seaborn
-          pip install fire protobuf psutil requests scipy send2trash tensorboard tqdm
-          pip install mlflow fastapi uvicorn python-multipart
+
+      - name: Install megadetector/ultralytics-yolov5 transitive deps
+        run: pip install fire protobuf psutil requests scipy send2trash tensorboard tqdm
+
+      - name: Install serving/tracking dependencies
+        run: pip install mlflow fastapi uvicorn python-multipart
 
       - name: Lint (unused imports, redefinitions, unused variables)
         run: ruff check --select F401,F811,F841 .
