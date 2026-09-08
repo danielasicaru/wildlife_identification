@@ -7,8 +7,8 @@ from src.utils.config import load_config
 
 @dataclass
 class ServeConfig:
-    backbone: str
-    checkpoint_dir: str
+    registered_model_name: str
+    registered_model_alias: str
     megadetector_model_name: str
     min_confidence: float
     box_expansion_fraction: float

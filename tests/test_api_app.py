@@ -8,7 +8,7 @@ from src.api.config import ServeConfig
 
 def _dummy_config(max_upload_bytes: int = 10_485_760) -> ServeConfig:
     return ServeConfig(
-        backbone="efficientnet_b0", checkpoint_dir="unused", megadetector_model_name="unused",
+        registered_model_name="unused", registered_model_alias="unused", megadetector_model_name="unused",
         min_confidence=0.2, box_expansion_fraction=0.1, host="127.0.0.1", port=8000,
         max_upload_bytes=max_upload_bytes,
     )

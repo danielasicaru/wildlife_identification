@@ -4,12 +4,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import mlflow
 import uvicorn
 
 from src.api.app import create_app
 from src.api.config import load_serve_config
+from src.utils.mlflow_tracking import mlflow_tracking_uri
 
 ROOT = Path(__file__).resolve().parents[1]
+mlflow.set_tracking_uri(mlflow_tracking_uri(ROOT))
 config = load_serve_config(ROOT / "configs" / "serve.yaml")
 app = create_app(config)
 

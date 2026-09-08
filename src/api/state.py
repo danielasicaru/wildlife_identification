@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import torch
+from mlflow.tracking import MlflowClient
 from torchvision.transforms import v2
 
 from src.api.config import ServeConfig
@@ -29,16 +30,28 @@ class AppState:
 def build_app_state(config: ServeConfig) -> AppState:
     """The expensive path -- downloads/loads MegaDetector and the classifier checkpoint. Called
     once from the lifespan hook, never per-request.
+
+    The classifier checkpoint is resolved via the MLflow Model Registry's `registered_model_alias`
+    (e.g. "production") rather than a local file path + hardcoded backbone name -- this is what
+    makes model promotion (scripts/promote_classifier.py) actually take effect here without
+    editing this config. The registry only resolves *which run* is promoted; the actual weights
+    are still loaded from that run's raw state_dict artifact with weights_only=True, not from the
+    registry's own (pickle-serialized) logged model object -- see promote_classifier.py's
+    docstring for why.
     """
-    checkpoint_dir = Path(config.checkpoint_dir)
-    species_to_index = json.loads((checkpoint_dir / "species_to_index.json").read_text(encoding="utf-8"))
+    client = MlflowClient()
+    model_version = client.get_model_version_by_alias(config.registered_model_name, config.registered_model_alias)
+    run = client.get_run(model_version.run_id)
+    backbone = run.data.params["backbone"]
+
+    species_index_path = client.download_artifacts(model_version.run_id, "species_to_index.json")
+    species_to_index = json.loads(Path(species_index_path).read_text(encoding="utf-8"))
     index_to_species = {v: k for k, v in species_to_index.items()}
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    classifier = build_model(config.backbone, num_classes=len(species_to_index), pretrained=False).to(device)
-    classifier.load_state_dict(
-        torch.load(checkpoint_dir / f"{config.backbone}.pt", map_location=device, weights_only=True)
-    )
+    classifier = build_model(backbone, num_classes=len(species_to_index), pretrained=False).to(device)
+    checkpoint_path = client.download_artifacts(model_version.run_id, f"{backbone}.pt")
+    classifier.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
     classifier.eval()
 
     detector = load_detector(config.megadetector_model_name)

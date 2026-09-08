@@ -1,5 +1,5 @@
-backbone: efficientnet_b0
-checkpoint_dir: data/checkpoints
+registered_model_name: camera-trap-classifier
+registered_model_alias: production
 megadetector_model_name: MDV5A
 min_confidence: 0.2
 box_expansion_fraction: 0.1

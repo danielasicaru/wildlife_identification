@@ -3,13 +3,10 @@ per-class precision/recall/F1, confusion matrix, day/night and per-site error se
 qualitative failure list. Writes reports/classifier_evaluation.md and
 reports/confusion_matrix.png."""
 import json
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
 
 import matplotlib.pyplot as plt
 import mlflow
@@ -22,6 +19,7 @@ from src.classifier.split import group_images_by_near_duplicates, split_groups
 from src.evaluation.classifier_metrics import confusion_matrix_df, per_class_report
 from src.evaluation.segmentation import build_site_lookup, day_night_label
 from src.utils.config import load_config
+from src.utils.mlflow_tracking import mlflow_tracking_uri
 
 ROOT = Path(__file__).resolve().parents[1]
 DETECTIONS_PATH = ROOT / "data" / "localization" / "detections.json"
@@ -61,7 +59,7 @@ if test_df.empty:
     raise SystemExit("Test split is empty -- nothing to evaluate.")
 
 # --- Load the best backbone from the most recent training run ---
-mlflow.set_tracking_uri((ROOT / "mlruns").as_uri())
+mlflow.set_tracking_uri(mlflow_tracking_uri(ROOT))
 runs = mlflow.search_runs(experiment_names=["camera-trap-classifier"], order_by=["start_time DESC"])
 if runs.empty:
     raise SystemExit("No MLflow runs found -- run scripts/train_classifier.py first.")

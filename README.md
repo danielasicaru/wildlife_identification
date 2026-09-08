@@ -191,31 +191,43 @@ artifacts so a model can be reloaded independently of its training run.
 
 ## Serving
 
-`src/api/`: a single `POST /predict` endpoint (plus `GET /health`). No Docker or other licensed
-tooling — runs directly via `uvicorn`.
+`src/api/`: `POST /predict`, `POST /predict/batch`, plus `GET /health` and `GET /metrics`. No
+Docker or other licensed tooling — runs directly via `uvicorn`.
 
 - `config.py` — `ServeConfig` loaded from `configs/serve.yaml`, same pattern as every other script
 - `state.py` — `AppState` holds the loaded MegaDetector, classifier, label mapping, and transform;
-  built once by `build_app_state()`, never per-request
+  built once by `build_app_state()`, never per-request. The classifier is resolved via the MLflow
+  Model Registry's `production` alias (see Reproducibility below), not a hardcoded backbone/path
 - `inference.py` — `predict(image, state)`: detect → crop → classify, calling the exact same
   `run_detection`/`filter_animal_detections`/`expand_bbox`/`crop_to_bbox`/`build_val_transform`
   functions the localization and classifier stages already use, so serving can't silently drift
   from what the model was trained/evaluated on
+- `schemas.py` — Pydantic `PredictResponse`/`BatchPredictResponse`, wired in as each route's
+  `response_model` for real OpenAPI docs at `/docs` instead of an untyped dict
+- `metrics.py` — `RequestMetrics`: request/error counts and a bounded window of recent latencies
+  for avg/p50/p95, exposed at `/metrics`; an HTTP middleware in `app.py` records every request and
+  logs a structured `method=... path=... status_code=... duration_ms=...` line
 - `app.py` — `create_app(config, state=None)`: a factory, not a module-level `app` object. If
   `state` is passed in, it's attached directly and no loading happens — this is what makes the app
   testable without downloading MegaDetector or loading a checkpoint in every test run. If `state`
   is `None` (the real path), a `lifespan` hook builds it once at startup and stores it on
-  `app.state` — never at import time, never rebuilt per-request.
+  `app.state` — never at import time, never rebuilt per-request. `/predict` reads at most
+  `max_upload_bytes + 1` bytes (413 if exceeded) rather than buffering an unbounded upload, and the
+  checkpoint loader uses `torch.load(..., weights_only=True)`. `/predict/batch` reuses the same
+  loaded `AppState` across files in one request (no per-file reload) and reports per-file errors
+  without failing the whole batch.
 
 ```bash
+python scripts/promote_classifier.py    # explicit: registers + aliases the best trained model as "production"
 python scripts/serve.py
 curl -X POST http://127.0.0.1:8000/predict -F "file=@path/to/image.jpg"
 # {"detections":[{"bbox":[949,0,1099,1494],"species":"cow","confidence":0.999}]}
 ```
 
 Verified against several real sample images — structurally correct end to end (bbox, species,
-confidence per detection). Prediction quality reflects the classifier's known small-sample
-limitations from the evaluation stage above, not a serving bug.
+confidence per detection), including a real registry promotion followed by a real server startup
+that resolved and loaded that exact promoted model. Prediction quality reflects the classifier's
+known small-sample limitations from the evaluation stage above, not a serving bug.
 
 ## Reproducibility
 
@@ -229,6 +241,10 @@ limitations from the evaluation stage above, not a serving bug.
   (SHA-256 per file/directory) since `data/` itself is gitignored.
 - **Automatic experiment metadata**: every training run logs its config, data manifest, and
   Python/PyTorch/CUDA versions to MLflow alongside the metrics.
+- **Model registry**: MLflow tracking uses a SQLite-backed store (`mlflow.db`, gitignored, same as
+  `mlruns/`) instead of the plain file store, since the Model Registry requires a database backend.
+  `scripts/promote_classifier.py` explicitly registers the best trained model and aliases it
+  `production` — serving resolves the classifier through that alias, not a hardcoded backbone/path.
 - A checksum manifest was chosen over DVC, and plain YAML over Hydra, to match this project's
   scale.
 

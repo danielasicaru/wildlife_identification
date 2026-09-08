@@ -6,14 +6,11 @@ the same run (unlike the other scripts' train/evaluate split) since each of the 
 backbones checkpoints needs evaluating immediately, not looked up later as "the latest batch."
 See reports/multiseed_evaluation.md for the result."""
 import json
-import os
 import random
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
 
 import mlflow
 import numpy as np
@@ -27,6 +24,7 @@ from src.classifier.split import group_images_by_near_duplicates, split_groups
 from src.classifier.training_run import train_and_compare_backbones
 from src.data.quality import find_near_duplicates
 from src.utils.config import load_config
+from src.utils.mlflow_tracking import mlflow_tracking_uri
 
 ROOT = Path(__file__).resolve().parents[1]
 DETECTIONS_PATH = ROOT / "data" / "localization" / "detections.json"
@@ -65,7 +63,7 @@ else:
     sample_paths = sorted(IMAGES_DIR.glob("*.jpg"))
     duplicate_pairs = [(a.name, b.name) for a, b in find_near_duplicates(sample_paths)]
 
-mlflow.set_tracking_uri((ROOT / "mlruns").as_uri())
+mlflow.set_tracking_uri(mlflow_tracking_uri(ROOT))
 mlflow.set_experiment("camera-trap-classifier-multiseed")
 
 results = {backbone: [] for backbone in BACKBONES}  # backbone -> list of (seed, test_accuracy)
