@@ -186,6 +186,10 @@ artifacts so a model can be reloaded independently of its training run.
 - **Detector: 0.535 Average Precision** (IoU >= 0.5) — lower than the 92.5% raw recall since AP
   also penalizes false positives. Counter-intuitively, large animals (>10% of frame) had the
   lowest per-box detection rate (81.6%) vs. small (88.2%) and medium (100%).
+- **mAP@[0.5:0.95] (COCO-style) is 0.381**, well below the single-threshold 0.535 — AP holds up
+  reasonably to IoU 0.8 (0.373) but collapses at stricter overlap requirements (0.034 at IoU 0.95).
+  MegaDetector's boxes reliably find the animal but aren't pixel-precise on this sample. See
+  `reports/detector_evaluation.md`.
 - **Occlusion segmentation is intentionally skipped**: only 20 manually tagged images against an
   88-crop test set — not enough overlap for a real finding.
 
