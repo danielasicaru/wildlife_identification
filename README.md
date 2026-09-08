@@ -17,6 +17,8 @@ A five-stage pipeline: dataset characterization, augmentation strategy, animal l
 classifier training (controlled multi-backbone comparison), and evaluation, ending in a
 production-shaped FastAPI inference service.
 
+![Pipeline architecture](reports/architecture.png)
+
 **Dataset:** Caltech Camera Traps (via LILA BC), paired with the "Recognition in Terra Incognita"
 benchmark for cross-site generalization.
 
@@ -59,8 +61,11 @@ python scripts/evaluate_classifier.py
 python scripts/train_classifier_site_holdout.py  # optional: site-disjoint generalization check
 python scripts/evaluate_classifier_site_holdout.py
 python scripts/train_classifier_multiseed.py     # optional: 5-seed backbone comparison
+python scripts/hyperparameter_search.py          # optional: learning-rate/batch-size grid
 python scripts/evaluate_detector.py
+python scripts/promote_classifier.py           # explicit: registers + aliases the best model "production"
 python scripts/serve.py                        # runs the inference API on 127.0.0.1:8000
+python scripts/generate_architecture_diagram.py  # optional: regenerates reports/architecture.png
 python -m pytest tests/ -v
 ```
 
