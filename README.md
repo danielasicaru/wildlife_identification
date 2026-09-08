@@ -54,7 +54,7 @@ python scripts/download_sample_images.py      # requires caltech_images_20210113
 python scripts/run_localization.py            # downloads MegaDetector v5a weights on first run
 python scripts/generate_localization_report.py
 python scripts/generate_data_manifest.py       # optional, referenced by train_classifier.py if present
-python scripts/train_classifier.py             # MLflow tracking, local file store
+python scripts/train_classifier.py             # MLflow tracking, SQLite-backed store
 python scripts/evaluate_classifier.py
 python scripts/train_classifier_site_holdout.py  # optional: site-disjoint generalization check
 python scripts/evaluate_classifier_site_holdout.py
@@ -132,7 +132,9 @@ ViT-B/16 (`models.py`), and class-weighted train/evaluate loops plus early stopp
 
 - `scripts/train_classifier.py` — trains + compares all three backbones with class-weighted loss,
   a `WeightedRandomSampler`, and early stopping (patience in `configs/train_classifier.yaml`,
-  restores best-epoch weights on stop); logs params/metrics/checkpoints to local-file MLflow
+  restores best-epoch weights on stop); logs params/metrics/checkpoints to MLflow (SQLite-backed
+  tracking store) and tracks per-class validation accuracy every epoch
+  (`reports/confusion_over_epochs.md`)
 - [notebooks/eda.ipynb](notebooks/eda.ipynb) — per-backbone metrics and comparison chart
 
 ### Key findings
@@ -148,6 +150,11 @@ ViT-B/16 (`models.py`), and class-weighted train/evaluate loops plus early stopp
   changes the checkpoint you end up with. This is a single seed-locked run on ~500 crops across
   imbalanced classes, read as a pipeline-correctness check, not a performance benchmark -- see the
   multi-seed comparison below for why that caveat isn't just boilerplate here.
+- **Per-class validation accuracy is now tracked every epoch, not just at the final epoch**
+  (`reports/confusion_over_epochs.md`) — most classes' accuracy improved from the first half of
+  training to the second half, as expected, but `lizard` got substantially worse (-56 points),
+  the only class to trend backward. The validation set is small enough (90 crops, many classes
+  with single-digit support) that this is a directional signal, not a precise one.
 
 ## Evaluation
 

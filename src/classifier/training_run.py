@@ -21,11 +21,16 @@ def train_and_compare_backbones(
     train_df, val_df, crops_dir: Path, species_to_index: dict[str, int], backbones: tuple[str, ...],
     seed: int, epochs: int, batch_size: int, learning_rate: float, early_stopping_patience: int,
     device: str, checkpoint_dir: Path, mlflow_params: dict, artifact_paths: list[Path],
+    on_epoch_end=None,
 ) -> dict[str, dict]:
     """Returns {backbone: best_val_metrics}. Assumes the caller has already called
     mlflow.set_tracking_uri()/set_experiment(). `mlflow_params` are extra per-run params logged
     alongside the standard ones (e.g. which split strategy produced train_df/val_df);
     `artifact_paths` are extra files logged as MLflow artifacts (e.g. the config file used).
+    `on_epoch_end`, if given, is called as `on_epoch_end(backbone, epoch_number, model)` after
+    every epoch, with the model in its current (not best-restored) state -- used to track
+    per-epoch metrics beyond loss/accuracy (e.g. per-class accuracy) without hardcoding that
+    concern into this shared loop, which every alternative-split experiment also calls.
     """
     train_minority = minority_species(train_df["species"].value_counts())
     train_dataset = CropDataset(train_df, crops_dir, species_to_index, is_train=True, minority_species=train_minority)
@@ -80,6 +85,8 @@ def train_and_compare_backbones(
                     f"[{backbone}] epoch {epoch + 1}/{epochs}: train_loss={train_loss:.4f} "
                     f"val_loss={val_metrics['loss']:.4f} val_acc={val_metrics['accuracy']:.3f}"
                 )
+                if on_epoch_end is not None:
+                    on_epoch_end(backbone, epochs_trained, model)
 
                 should_stop = early_stopping.step(val_metrics["loss"])
                 if early_stopping.epochs_without_improvement == 0:

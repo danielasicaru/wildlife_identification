@@ -9,12 +9,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import mlflow
 import numpy as np
+import pandas as pd
 import torch
 
 from src.classifier.data_prep import build_labeled_crop_df
+from src.classifier.prediction import predict_test_set
 from src.classifier.split import group_images_by_near_duplicates, split_groups
 from src.classifier.training_run import train_and_compare_backbones
 from src.data.quality import find_near_duplicates
+from src.evaluation.classifier_metrics import per_class_report
 from src.utils.config import load_config
 from src.utils.mlflow_tracking import mlflow_tracking_uri
 
@@ -93,17 +96,67 @@ if train_df.empty or val_df.empty:
     raise SystemExit("Train or val split is empty -- not enough labeled crops to proceed.")
 
 species_to_index = {s: i for i, s in enumerate(sorted(crop_df["species"].unique()))}
+index_to_species = {i: s for s, i in species_to_index.items()}
+labels = sorted(species_to_index.keys())
 
 mlflow.set_tracking_uri(mlflow_tracking_uri(ROOT))
 mlflow.set_experiment("camera-trap-classifier")
+
+# Per-class validation accuracy at every epoch (not just a final-epoch snapshot), so
+# reports/confusion_over_epochs.md can show whether specific classes' errors are stable,
+# improving, or degrading over the course of training.
+epoch_class_accuracy: dict[str, list[dict]] = {backbone: [] for backbone in BACKBONES}
+
+
+def track_per_class_accuracy(backbone: str, epoch: int, model) -> None:
+    model.eval()
+    predictions = predict_test_set(model, val_df, CROPS_DIR, species_to_index, index_to_species, device)
+    recall_by_class = per_class_report(predictions["true"].tolist(), predictions["predicted"].tolist(), labels)["recall"]
+    epoch_class_accuracy[backbone].append({"epoch": epoch, **recall_by_class.to_dict()})
+
 
 artifact_paths = [CONFIG_PATH] + ([DATA_MANIFEST_PATH] if DATA_MANIFEST_PATH.exists() else [])
 results = train_and_compare_backbones(
     train_df, val_df, CROPS_DIR, species_to_index, BACKBONES, SEED, EPOCHS, BATCH_SIZE,
     LEARNING_RATE, EARLY_STOPPING_PATIENCE, device, CHECKPOINT_DIR,
-    mlflow_params={}, artifact_paths=artifact_paths,
+    mlflow_params={}, artifact_paths=artifact_paths, on_epoch_end=track_per_class_accuracy,
 )
 
 print("\nComparison (final val accuracy):")
 for backbone, metrics in results.items():
     print(f"  {backbone}: {metrics['accuracy']:.3f}")
+
+# --- Per-class accuracy over epochs report ---
+REPORT_DIR = ROOT / "reports"
+for backbone, rows in epoch_class_accuracy.items():
+    pd.DataFrame(rows).set_index("epoch").to_csv(REPORT_DIR / f"confusion_over_epochs_{backbone}.csv")
+
+best_backbone = max(results, key=lambda b: results[b]["accuracy"])
+best_epochs_df = pd.DataFrame(epoch_class_accuracy[best_backbone]).set_index("epoch")
+midpoint = len(best_epochs_df) // 2
+first_half_mean = best_epochs_df.iloc[:midpoint].mean()
+second_half_mean = best_epochs_df.iloc[midpoint:].mean()
+accuracy_change = (second_half_mean - first_half_mean).sort_values().round(3)
+
+epochs_report_lines = [
+    "# Per-Class Accuracy Over Training Epochs",
+    "",
+    f"Validation-set per-class accuracy (recall) tracked at every epoch during training for "
+    f"**{best_backbone}** (this run's best backbone), not just a final-epoch snapshot -- shows "
+    "which classes' errors are stable, improving, or degrading as training progresses. The "
+    "validation set is small (90 crops across 19 species, many classes with single-digit "
+    "support), so per-class accuracy swings by 50 percentage points on a single flipped "
+    "prediction -- read trends here as directional, not precise.",
+    "",
+    f"{len(best_epochs_df)} epochs tracked. Accuracy change from the first half of training to "
+    "the second half (second-half mean minus first-half mean; negative = got worse as training "
+    "progressed):",
+    "",
+    accuracy_change.to_frame("accuracy_change").to_markdown(),
+    "",
+    "Full per-epoch, per-class accuracy for every backbone: "
+    "`reports/confusion_over_epochs_<backbone>.csv`.",
+]
+with open(REPORT_DIR / "confusion_over_epochs.md", "w", encoding="utf-8") as f:
+    f.write("\n".join(epochs_report_lines))
+print(f"Report: {REPORT_DIR / 'confusion_over_epochs.md'}")
