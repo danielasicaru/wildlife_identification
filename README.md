@@ -168,7 +168,11 @@ artifacts so a model can be reloaded independently of its training run.
 - `scripts/train_classifier_multiseed.py` — trains + evaluates all three backbones across 5 seeds,
   reseeding the split each time; reports mean/std test accuracy (`reports/multiseed_evaluation.md`)
 - `scripts/evaluate_detector.py` — average precision, missed-detection analysis by size/day-night
-- [notebooks/eda.ipynb](notebooks/eda.ipynb) — confusion matrix and raw report text
+- `scripts/hyperparameter_search.py` — small learning-rate/batch-size grid on EfficientNet-B0,
+  one seed each, same split for every point (`reports/hyperparameter_search.md`)
+- `src/evaluation/gradcam.py` — Grad-CAM heatmaps for the production classifier (CNN backbones
+  only), shown in the notebook
+- [notebooks/eda.ipynb](notebooks/eda.ipynb) — confusion matrix, raw report text, Grad-CAM heatmaps
 
 ### Key findings
 
@@ -199,6 +203,14 @@ artifacts so a model can be reloaded independently of its training run.
   `reports/detector_evaluation.md`.
 - **Occlusion segmentation is intentionally skipped**: only 20 manually tagged images against an
   88-crop test set — not enough overlap for a real finding.
+- **Hyperparameter search validates the existing default**: of 6 learning-rate/batch-size
+  combinations tried on EfficientNet-B0 (same split for every point), `learning_rate=0.0001,
+  batch_size=16` — already the value in `configs/train_classifier.yaml` — won outright (50.0% val
+  accuracy vs. 26.7-44.4% for the other five). Read cautiously (one seed per point, small val set),
+  but the original choice wasn't arbitrary. See `reports/hyperparameter_search.md`.
+- **Grad-CAM heatmaps** on the production classifier (EfficientNet-B0) show it attending to the
+  animal's body, not incidental background — e.g. a correctly-classified bobcat's heatmap
+  concentrates on the torso. CNN-only; ViT-B/16 has no equivalent spatial conv feature map.
 
 ## Serving
 
