@@ -287,6 +287,38 @@ known small-sample limitations from the evaluation stage above, not a serving bu
   make that infeasible without dropping already-scarce species. Some rare species end up
   train-only as a documented consequence of the imbalance found during characterization.
 
+## What I'd do differently at scale
+
+Every choice below was appropriate for a 633-image sample and a single local machine. None of
+them are the right choice at the full dataset's actual scale (243,100 images, tens of millions in
+a real multi-park deployment) — naming that gap explicitly, rather than leaving it implicit:
+
+- **Data loading**: `src/data/loader.py` does in-memory `pandas` joins over the full annotation
+  set on every script run. At 243K images this still fits in memory, but at real deployment scale
+  (many parks, years of continuous capture) it wouldn't — I'd move to partitioned Parquet with a
+  query engine (DuckDB or Spark) instead of loading everything into one DataFrame per run.
+- **Data/model versioning**: the checksum manifest (`reports/data_manifest.json`) and local
+  checkpoint files work because everything fits on one disk. At scale I'd use DVC or LakeFS for
+  data versioning and object storage (S3/GCS) for checkpoints, not a hand-rolled SHA-256 list.
+- **Training orchestration**: the multi-seed comparison, site-holdout check, and hyperparameter
+  search all run sequentially on one GPU because that's what's available here. They're
+  embarrassingly parallel — at scale I'd run them concurrently across a GPU cluster (Ray, SLURM,
+  or a managed training service) instead of one script looping over seeds/grid points.
+- **Experiment tracking**: SQLite-backed MLflow (`mlflow.db`) supports the Model Registry but not
+  concurrent writers from multiple training jobs. At scale that's a hosted MLflow server backed by
+  Postgres, not a local SQLite file.
+- **Serving**: a single `uvicorn` process handles one request's MegaDetector + classifier forward
+  pass at a time (in a thread pool, per ADR 0010). `/predict/batch` amortizes per-call overhead
+  within one process, but doesn't give real throughput scaling — at scale I'd put a proper request
+  batching/queueing layer in front of the model (e.g. NVIDIA Triton or a custom batching queue),
+  run multiple replicas behind a load balancer, and autoscale on request volume.
+- **Metrics**: `RequestMetrics` is in-process memory, reset on restart and invisible across
+  replicas. At scale that's Prometheus scraping `/metrics` (already exposed in a compatible shape)
+  with Grafana dashboards and alerting, not an in-memory deque.
+- **Promotion gate**: `promote_classifier.py` promotes based on validation accuracy alone. At
+  scale I'd add a held-out "golden set" canary evaluation as a gate before promotion, and a
+  rollback path if a newly promoted model regresses in production.
+
 ## Repository conventions
 
 - Prefer small, focused files over large ones that do too much.
