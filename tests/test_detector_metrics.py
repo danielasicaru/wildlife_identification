@@ -1,6 +1,6 @@
 import pytest
 
-from src.evaluation.detector_metrics import average_precision, per_box_detected
+from src.evaluation.detector_metrics import average_precision, mean_average_precision, per_box_detected
 
 
 def test_average_precision_perfect_detector_is_one():
@@ -34,6 +34,32 @@ def test_average_precision_penalizes_false_positives():
     ap = average_precision(detections, ground_truth, iou_threshold=0.5)
 
     assert ap < 1.0
+
+
+def test_mean_average_precision_perfect_detector_is_one():
+    detections = [
+        {"image_id": "a", "bbox": (0, 0, 10, 10), "confidence": 0.9},
+        {"image_id": "b", "bbox": (0, 0, 10, 10), "confidence": 0.8},
+    ]
+    ground_truth = {"a": [(0, 0, 10, 10)], "b": [(0, 0, 10, 10)]}
+
+    result = mean_average_precision(detections, ground_truth)
+
+    assert result["mAP"] == pytest.approx(1.0)
+    assert len(result["per_threshold"]) == 10
+    assert set(result["per_threshold"].keys()) == {round(0.5 + 0.05 * i, 2) for i in range(10)}
+
+
+def test_mean_average_precision_is_at_most_ap_at_lowest_threshold():
+    # Loosely-overlapping boxes: pass at IoU 0.5 but fail stricter thresholds, so mAP averaged
+    # over 0.5-0.95 must be no higher than AP at the single loosest threshold (0.5).
+    detections = [{"image_id": "a", "bbox": (0, 0, 10, 10), "confidence": 0.9}]
+    ground_truth = {"a": [(2, 2, 10, 10)]}  # partial overlap -- IoU around 0.47-0.5-ish range
+
+    ap_at_50 = average_precision(detections, ground_truth, iou_threshold=0.5)
+    result = mean_average_precision(detections, ground_truth)
+
+    assert result["mAP"] <= ap_at_50 + 1e-9
 
 
 def test_per_box_detected_distinguishes_boxes_within_same_image():

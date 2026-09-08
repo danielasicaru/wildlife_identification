@@ -62,6 +62,23 @@ def average_precision(
     return ap
 
 
+def mean_average_precision(
+    detections: list[dict],
+    ground_truth: dict[str, list[tuple[int, int, int, int]]],
+    iou_thresholds: tuple[float, ...] = tuple(round(0.5 + 0.05 * i, 2) for i in range(10)),
+) -> dict:
+    """COCO-style mAP@[0.5:0.95]: average_precision() computed at IoU thresholds 0.50, 0.55, ...,
+    0.95 and averaged. A single AP@0.5 rewards loosely-overlapping boxes as much as tightly-fitted
+    ones; averaging over stricter thresholds too penalizes boxes that merely overlap the animal
+    without actually framing it well. Returns {"mAP": float, "per_threshold": {threshold: ap}}.
+    """
+    per_threshold = {
+        threshold: average_precision(detections, ground_truth, iou_threshold=threshold)
+        for threshold in iou_thresholds
+    }
+    return {"mAP": sum(per_threshold.values()) / len(per_threshold), "per_threshold": per_threshold}
+
+
 def per_box_detected(
     detections: list[dict],
     ground_truth: dict[str, list[tuple[int, int, int, int]]],

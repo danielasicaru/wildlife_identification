@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 
-from src.evaluation.detector_metrics import average_precision, per_box_detected
+from src.evaluation.detector_metrics import average_precision, mean_average_precision, per_box_detected
 from src.evaluation.segmentation import day_night_label
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +47,7 @@ detections = [
 ]
 
 ap = average_precision(detections, ground_truth, iou_threshold=0.5)
+map_result = mean_average_precision(detections, ground_truth)
 
 # Per-box IoU-matched status, reused below by both breakdowns -- a raw "did this image get any
 # detection" flag would wrongly credit a false-positive-only image as a real detection.
@@ -82,14 +83,29 @@ day_night_rows = [
 day_night_df = pd.DataFrame(day_night_rows)
 day_night_recall = day_night_df.groupby("day_night")["detected"].agg(["mean", "count"]) if not day_night_df.empty else None
 
+per_threshold_df = pd.DataFrame(
+    [{"iou_threshold": t, "ap": round(v, 3)} for t, v in sorted(map_result["per_threshold"].items())]
+)
+
 lines = [
     "# Detector Evaluation",
     "",
     f"**Average Precision (IoU >= 0.5): {ap:.3f}**",
+    f"**mAP@[0.5:0.95] (COCO-style, averaged over IoU 0.50-0.95 in steps of 0.05): "
+    f"{map_result['mAP']:.3f}**",
     "",
     f"{len(detections)} detections across {len(detection_results)} images compared against "
     f"{sum(len(v) for v in ground_truth.values())} ground-truth animal boxes in "
     f"{len(ground_truth)} annotated images.",
+    "",
+    "## AP per IoU threshold",
+    "",
+    "mAP@[0.5:0.95] averages AP across these ten thresholds instead of reporting a single value "
+    "at IoU >= 0.5 -- a box that loosely overlaps an animal counts the same as a tightly-fitted "
+    "one under the single-threshold metric above; this shows how much AP drops as the overlap "
+    "requirement gets stricter.",
+    "",
+    per_threshold_df.to_markdown(index=False),
     "",
     "## Missed-detection analysis by animal size (fraction of frame)",
     "",
@@ -122,4 +138,5 @@ with open(REPORT_PATH, "w", encoding="utf-8") as f:
     f.write("\n".join(lines))
 
 print(f"Average Precision (IoU >= 0.5): {ap:.3f}")
+print(f"mAP@[0.5:0.95]: {map_result['mAP']:.3f}")
 print(f"Report: {REPORT_PATH}")
